@@ -29,7 +29,8 @@ ferry send  ── pack ─▶ stage ─ push ─▶  prefix/<key>/part-*   ─ 
 ## Documentation
 
 Read the [English documentation](https://daviddwlee84.github.io/ferry/) for a safe
-local quickstart, configuration reference, and operational guidance. The
+local quickstart, interactive configuration wizard, configuration reference, and
+operational guidance, including [recommended Pueue usage](docs/pueue.md). The
 [Markdown sources](docs/index.md) are also available in this repository.
 
 GitHub Actions checks documentation on pull requests and deploys the Zensical
@@ -62,6 +63,32 @@ Python ≥ 3.11, no runtime dependencies. Backend CLIs are used as installed:
 [BaiduPCS-Go](https://github.com/qjfoidnh/BaiduPCS-Go), `rclone`, `gh`.
 
 ## Job file
+
+Create a config interactively without writing TOML by hand:
+
+```bash
+ferry init                         # preview, then save an XDG config named after the job
+ferry init --output ./photos.toml   # opt into a project-local file
+ferry init --stdout                # interactive prompts on stderr; TOML on stdout only
+```
+
+Each sync job has its own TOML. By default the wizard writes
+`$XDG_CONFIG_HOME/ferry/jobs/<name>.toml`, using `~/.config/ferry/jobs/<name>.toml`
+when `XDG_CONFIG_HOME` is unset, empty, or relative. The managed directory is
+created only after you confirm saving. Explicit `--output` paths require an
+existing parent directory. Use distinct job names, state/staging directories,
+and relay prefixes for independent syncs; existing configs are not migrated.
+Commands still take an explicit job path, as printed by the wizard.
+
+The wizard supports all five backends and both unit-selection methods. It keeps
+sources by default, refuses existing output files, and never reads credentials,
+contacts a backend, starts transfers, or installs services. Systemd/cron choices
+preview the existing service definitions and print explicit install commands.
+See the [wizard walkthrough](docs/getting-started.md#create-a-job-interactively).
+
+For manual configuration, the advanced example below demonstrates optional settings.
+**It deletes sources after upload size checks**; use `delete_source = "never"` for
+a pilot, as the wizard does, and review the [deletion policies](docs/operations.md#source-deletion).
 
 ```toml
 name = "daily-archive"                        # also the default state dir name
@@ -145,6 +172,7 @@ A job with `delete_source = "never"` mirrors a growing, occasionally repaired so
 ## Commands
 
 ```bash
+ferry init [--output PATH] [--stdout]     # offline interactive configuration wizard
 ferry doctor job.toml [--side receiver]   # backend login, proxy settings, routes
 ferry plan job.toml                       # units found under the source root
 ferry send job.toml [--follow]            # until every unit is pushed (then marks done)
@@ -162,16 +190,27 @@ polls for new or changed units. Put it under a supervisor; `ferry service` print
 with `--install`, writes and enables) one:
 
 ```bash
-ferry service job.toml --side receiver                 # print a systemd user unit
-ferry service job.toml --side receiver --install       # ~/.config/systemd/user/ferry-<job>-receiver.service
-ferry service job.toml --side sender --kind cron --schedule "0 2 * * *" --install
-ferry service job.toml --side sender --uninstall
-loginctl enable-linger $USER                           # let user services run without a login
+ferry service /absolute/job.toml --side receiver          # preview a systemd user unit
+ferry service /absolute/job.toml --side receiver --install # install, enable, and start now
+ferry service /absolute/job.toml --side receiver --uninstall
+ferry service /absolute/job.toml --side sender --kind cron --schedule "0 2 * * *"
+ferry service /absolute/job.toml --side sender --kind cron --schedule "0 2 * * *" --install
+ferry service /absolute/job.toml --side sender --kind cron --uninstall
 ```
 
 systemd units run `--follow` with `Restart=on-failure`; cron entries run one-shot
-(`send`, `receive --once`) and rely on the job lock to skip overlapping runs. Any other
-supervisor (pueue, tmux, launchd) works the same way: run the printed command.
+commands (`send`, `receive --once`). Overlapping instances of the same local
+job/side exit 2, rather than running additional workers. A one-shot sender can
+still wait on receiver acknowledgements or relay space, so arrange an independent
+receiver. `receive --once` is one scan, not proof that a whole batch arrived.
+
+Review the [unattended-operation guide](docs/operations.md#unattended-operation)
+for backend `PATH`, authentication, logs, and systemd lingering. Enabling linger
+is a separate host-policy decision, not something Ferry does automatically.
+For [Pueue](docs/pueue.md), prefer queued sender batches plus a service-managed
+receiver; do not put a receiver behind a sender that needs it to make progress.
+Ferry has no launchd or Pueue installer. Do not let multiple supervisors own the
+same job/side.
 
 Library use (e.g. from an orchestrator):
 

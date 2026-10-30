@@ -79,9 +79,21 @@ class RemoteSpec:
     #: Per-side adapter overrides, e.g. the receiver reads an rsync target as "local".
     sides: dict = field(default_factory=dict)
 
+    #: Bandwidth caps in bytes/second for transfers started on this host (None = no cap).
+    upload_rate: int | None = None
+    download_rate: int | None = None
+
     def for_side(self, side: str) -> tuple[str, dict]:
         override = self.sides.get(side, {})
         return override.get("adapter", self.adapter), dict(override.get("options", self.options))
+
+    def rates_for_side(self, side: str) -> tuple[int | None, int | None]:
+        """(upload, download) caps; a side override wins over the [remote] default."""
+        override = self.sides.get(side, {})
+        up = parse_size(override["upload_rate"]) if "upload_rate" in override else self.upload_rate
+        down = (parse_size(override["download_rate"]) if "download_rate" in override
+                else self.download_rate)
+        return up, down
 
 
 @dataclass(frozen=True)
@@ -152,7 +164,9 @@ def job_from_dict(data: dict, path: Path | None = None) -> Job:
                             egress=r.get("egress", "direct"),
                             trusted_interfaces=tuple(r.get("trusted_interfaces", ())),
                             options=dict(r.get("options", {})),
-                            sides=dict(r.get("sides", {})))
+                            sides=dict(r.get("sides", {})),
+                            upload_rate=parse_size(r.get("upload_rate")),
+                            download_rate=parse_size(r.get("download_rate")))
         if set(remote.sides) - {"sender", "receiver"}:
             raise JobError("remote.sides keys must be 'sender' or 'receiver'")
         if remote.egress not in EGRESS_POLICIES:

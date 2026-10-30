@@ -11,9 +11,18 @@ _UNITS = {
 }
 
 
+_BITS = re.compile(r"\s*([0-9]+(?:\.[0-9]+)?)\s*([kKmMgG]?)(?:bit|bps)\s*")
+
+
 def parse_size(value: str | int | None) -> int | None:
+    """Bytes from "300GB", "3900MiB", ... Network rates may also be given in bits:
+    "20Mbit" / "20Mbps" (decimal, lowercase b) mean 20e6 bits = 2.5e6 bytes."""
     if value is None or isinstance(value, int):
         return value
+    bits = _BITS.fullmatch(value)
+    if bits:
+        scale = {"": 1, "k": 10**3, "m": 10**6, "g": 10**9}[bits.group(2).lower()]
+        return int(float(bits.group(1)) * scale / 8)
     m = re.fullmatch(r"\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z]*)\s*", value)
     if not m or m.group(2).upper() not in _UNITS:
         raise ValueError(f"invalid size: {value!r}")

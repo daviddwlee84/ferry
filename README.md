@@ -183,6 +183,29 @@ result = ferry.send(job)            # SendResult(pushed=..., pushed_bytes=..., .
 st = ferry.side_status(job, "sender", remote=True)
 ```
 
+## Bandwidth caps
+
+A relay host is often a shared home or office line. Cap what ferry starts there:
+
+```toml
+[remote]
+upload_rate = "20Mbps"        # bytes ("2.5MB") or bits ("20Mbps", "800kbit")
+download_rate = "300Mbps"
+[remote.sides.receiver]
+download_rate = "50MB"        # per-side override
+```
+
+| adapter | how the cap is enforced |
+|---|---|
+| `rclone` | `--bwlimit UP:DOWN` per transfer |
+| `rsync` | `--bwlimit` per transfer |
+| `baidupcs` | BaiduPCS-Go config `max_upload_rate` / `max_download_rate` (it has no per-command flag), so the cap applies to **every** BaiduPCS-Go process of that OS user on the host; two concurrent processes may each use the cap |
+| `local` | throttled copy |
+| `ghrelease` | not supported: a cap makes preflight fail instead of silently running at full speed |
+
+Caps act per process, not per host. To cap a whole machine regardless of the tool, shape
+traffic at the OS (`tc`) or the router.
+
 ## Egress
 
 Proxy traffic is metered, so by default ferry insists on a direct path:

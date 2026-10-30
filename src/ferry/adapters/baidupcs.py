@@ -60,6 +60,9 @@ class BaiduPCSAdapter(Adapter):
     name = "baidupcs"
     endpoints = ("pan.baidu.com", "pcs.baidu.com", "d.pcs.baidu.com", "c.pcs.baidu.com")
     default_part_size = 3900 * 1024**2  # below the 4 GB single-file limit of non-SVIP accounts
+    # BaiduPCS-Go has no per-command limit; caps go into its config (max_upload_rate /
+    # max_download_rate), which every BaiduPCS-Go process of this OS user then obeys.
+    supports_rate_limit = True
 
     def __init__(self, options: dict, log: Path | None = None):
         super().__init__(options, log)
@@ -85,7 +88,13 @@ class BaiduPCSAdapter(Adapter):
         value = parse_config_value(self._run("config"), "proxy")
         return [f"BaiduPCS-Go config proxy={value!r}"] if value else []
 
+    def _apply_rate(self, key: str, rate: int | None) -> None:
+        """Set a BaiduPCS-Go config cap when the job asks for one (leave it alone otherwise)."""
+        if rate:
+            self._run("config", "set", f"-{key}", f"{max(1, rate // 1024)}KB")
+
     def put(self, local: Path, remote: str) -> None:
+        self._apply_rate("max_upload_rate", self.upload_rate)
         remote_dir, name = posixpath.split(remote)
         if name != local.name:
             raise ValueError(f"baidupcs uploads keep the local name ({local.name} != {name})")
@@ -95,6 +104,7 @@ class BaiduPCSAdapter(Adapter):
         run_transfer([*args, str(local), remote_dir or "/"], log=self.log)
 
     def get(self, remote: str, local: Path) -> None:
+        self._apply_rate("max_download_rate", self.download_rate)
         local.parent.mkdir(parents=True, exist_ok=True)
         name = posixpath.basename(remote)
         target = local.parent if local.name == name else Path(tempfile.mkdtemp(dir=local.parent))

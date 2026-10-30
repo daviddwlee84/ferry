@@ -19,6 +19,12 @@ class Adapter(ABC):
     max_part_size: int | None = None
     #: Part size used when the job does not set one.
     default_part_size: int | None = None
+    #: Bandwidth caps in bytes/second, set from the job ([remote] upload_rate/download_rate).
+    upload_rate: int | None = None
+    download_rate: int | None = None
+    #: Whether this backend can enforce the caps; preflight fails when a cap is set but
+    #: cannot be honoured, rather than silently transferring at full speed.
+    supports_rate_limit: bool = False
 
     def __init__(self, options: dict, log: Path | None = None):
         self.options = options
@@ -26,6 +32,12 @@ class Adapter(ABC):
 
     def check(self) -> list[str]:
         """Problems that make the backend unusable (missing binary, not logged in...)."""
+        return []
+
+    def rate_problems(self) -> list[str]:
+        if (self.upload_rate or self.download_rate) and not self.supports_rate_limit:
+            return [f"{self.name} cannot limit bandwidth; remove upload_rate/download_rate "
+                    "or shape traffic outside ferry"]
         return []
 
     def proxy_settings(self) -> list[str]:

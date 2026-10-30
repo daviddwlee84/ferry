@@ -25,6 +25,7 @@ _BACKEND_ENDPOINTS = {
 
 class RcloneAdapter(Adapter):
     name = "rclone"
+    supports_rate_limit = True
 
     def __init__(self, options: dict, log: Path | None = None):
         super().__init__(options, log)
@@ -60,14 +61,20 @@ class RcloneAdapter(Adapter):
                             "so the egress guard can check routes")
         return problems
 
+    def _bwlimit(self) -> list[str]:
+        if not (self.upload_rate or self.download_rate):
+            return []
+        fmt = lambda n: f"{n}B" if n else "off"  # noqa: E731
+        return ["--bwlimit", f"{fmt(self.upload_rate)}:{fmt(self.download_rate)}"]
+
     def put(self, local: Path, remote: str) -> None:
-        run_transfer([self.bin, "copyto", *self.flags, str(local), self._full(remote)],
-                     log=self.log)
+        run_transfer([self.bin, "copyto", *self.flags, *self._bwlimit(), str(local),
+                      self._full(remote)], log=self.log)
 
     def get(self, remote: str, local: Path) -> None:
         local.parent.mkdir(parents=True, exist_ok=True)
-        run_transfer([self.bin, "copyto", *self.flags, self._full(remote), str(local)],
-                     log=self.log)
+        run_transfer([self.bin, "copyto", *self.flags, *self._bwlimit(), self._full(remote),
+                      str(local)], log=self.log)
 
     def _lsjson(self, remote: str, *flags: str) -> list[dict] | dict | None:
         try:

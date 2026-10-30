@@ -86,6 +86,15 @@ def main(argv: list[str] | None = None) -> int:
             lines += [f"  problem: {x}" for x in report.problems]
             shown = {f"{r['host']}: {r['problem']}" for r in report.routes if r["problem"]}
             lines += [f"  egress: {x}" for x in report.egress_findings if x not in shown]
+            rates = {k: (human(v) + "/s" if v else "uncapped") for k, v in report.rates.items()}
+            lines.append(f"  bandwidth: upload {rates.get('upload')}, "
+                         f"download {rates.get('download')}")
+            from .host import load_host_budget
+            host = load_host_budget()
+            if host.source:
+                lines.append(f"  host budget ({host.source}): up {human(host.upload_rate)}/s, "
+                             f"down {human(host.download_rate)}/s, "
+                             f"{host.max_transfers or 'unlimited'} transfer(s) per direction")
             if report.proxy_env_stripped:
                 lines.append("  proxy env (removed for child processes): "
                              + ", ".join(report.proxy_env_stripped))

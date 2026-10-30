@@ -242,8 +242,21 @@ download_rate = "50MB"        # per-side override
 | `local` | throttled copy |
 | `ghrelease` | not supported: a cap makes preflight fail instead of silently running at full speed |
 
-Caps act per process, not per host. To cap a whole machine regardless of the tool, shape
-traffic at the OS (`tc`) or the router.
+Job caps act per transfer. To bound **all ferry transfers on a host** together (e.g.
+several jobs sharing one home uplink), add a host budget,
+`$XDG_CONFIG_HOME/ferry/host.toml` (or `$FERRY_HOST_CONFIG`):
+
+```toml
+upload_rate = "16Mbps"     # total per direction for this host
+download_rate = "240Mbps"
+max_transfers = 1          # concurrent ferry transfers per direction (default 1 when a rate is set)
+```
+
+Each upload/download takes one of `max_transfers` slots (file locks under
+`$XDG_STATE_HOME/ferry/host-slots/`, no root needed) and runs at `rate / max_transfers`;
+extra transfers wait for a slot. A job's own cap still applies when it is lower, and
+`ferry doctor` shows the effective rates. Programs other than ferry are not covered: to
+cap a whole machine regardless of the tool, shape traffic at the OS (`tc`) or the router.
 
 ## Egress
 

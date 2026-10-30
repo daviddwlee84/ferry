@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .sizes import parse_size
-from .windows import Window
+from .windows import Schedule, Window
 
 DELETE_POLICIES = ("never", "after_remote_size", "after_receiver_ack")
 EGRESS_POLICIES = ("direct", "any")
@@ -82,6 +82,11 @@ class RemoteSpec:
     #: Bandwidth caps in bytes/second for transfers started on this host (None = no cap).
     upload_rate: int | None = None
     download_rate: int | None = None
+    #: When transfers may run, per direction (see ferry.windows.Schedule).
+    upload_schedule: Schedule = field(default_factory=Schedule)
+    download_schedule: Schedule = field(default_factory=Schedule)
+    #: Stop a running transfer when its window closes (False: let the part finish).
+    stop_at_window_end: bool = True
 
     def for_side(self, side: str) -> tuple[str, dict]:
         override = self.sides.get(side, {})
@@ -114,6 +119,13 @@ def _duration(value: str | int | float) -> float:
     if not m:
         raise JobError(f"invalid duration {value!r}; use e.g. '30m', '6h', '2d'")
     return float(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}[m.group(2)]
+
+
+def parse_schedule(data: dict, direction: str) -> Schedule:
+    """`<direction>_allowed` / `<direction>_blocked` lists of window specs."""
+    return Schedule(
+        allowed=tuple(Window.parse(w) for w in data.get(f"{direction}_allowed", ())),
+        blocked=tuple(Window.parse(w) for w in data.get(f"{direction}_blocked", ())))
 
 
 def _path(value: str) -> Path:
@@ -166,7 +178,10 @@ def job_from_dict(data: dict, path: Path | None = None) -> Job:
                             options=dict(r.get("options", {})),
                             sides=dict(r.get("sides", {})),
                             upload_rate=parse_size(r.get("upload_rate")),
-                            download_rate=parse_size(r.get("download_rate")))
+                            download_rate=parse_size(r.get("download_rate")),
+                            upload_schedule=parse_schedule(r, "upload"),
+                            download_schedule=parse_schedule(r, "download"),
+                            stop_at_window_end=bool(r.get("stop_at_window_end", True)))
         if set(remote.sides) - {"sender", "receiver"}:
             raise JobError("remote.sides keys must be 'sender' or 'receiver'")
         if remote.egress not in EGRESS_POLICIES:

@@ -5,6 +5,7 @@ import fcntl
 import logging
 import os
 import shutil
+import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -13,7 +14,9 @@ from .adapters import Adapter, make_adapter
 from .egress import check_routes, proxy_vars_present
 from .host import HostBudget, load_host_budget
 from .job import Job
+from .proc import transfer_deadline
 from .protocol import Ledger
+from .windows import seconds_until_close, wait_seconds
 
 
 class PreflightError(RuntimeError):
@@ -45,8 +48,9 @@ class Preflight:
 def adapter_for(job: Job, side: str, host: HostBudget | None = None) -> Adapter:
     """Build the side's adapter with the job caps tightened by the host-wide budget.
 
-    Every put/get then holds a host transfer slot (see ferry.host), so the total of all
-    ferry transfers on this machine stays within ``host.toml``.
+    Every put/get then waits for its transfer window (job and host schedules) and holds
+    a host transfer slot (see ferry.host), so all ferry transfers on this machine stay
+    within ``host.toml`` and only run when allowed.
     """
     name, options = job.remote.for_side(side)
     adapter = make_adapter(name, options, log=job.state_dir / f"{side}.transfer.log")
@@ -54,12 +58,38 @@ def adapter_for(job: Job, side: str, host: HostBudget | None = None) -> Adapter:
     up, down = job.remote.rates_for_side(side)
     adapter.upload_rate = host.effective("upload", up)
     adapter.download_rate = host.effective("download", down)
-    if host.max_transfers:
-        _hold_slots(adapter, host)
+    schedules = {
+        "upload": [job.remote.upload_schedule, host.schedule("upload")],
+        "download": [job.remote.download_schedule, host.schedule("download")],
+    }
+    if host.max_transfers or any(s for pair in schedules.values() for s in pair):
+        stop = job.remote.stop_at_window_end and host.stop_at_window_end
+        _gate(adapter, host, schedules, stop_at_window_end=stop)
     return adapter
 
 
-def _hold_slots(adapter: Adapter, host: HostBudget) -> None:
+def wait_for_window(direction: str, schedules: list, *, sleep=None,
+                    max_nap: float = 300) -> None:
+    """Block until every schedule for `direction` is open (re-checked every few minutes)."""
+    sleep = sleep or time.sleep
+    log = logging.getLogger("ferry.host")
+    announced = False
+    while True:
+        wait = wait_seconds(schedules)
+        if wait == 0:
+            return
+        if wait is None:
+            raise PreflightError(f"{direction} schedules never open within 8 days; "
+                                 "check *_allowed / *_blocked windows")
+        if not announced:
+            log.info("%s outside its transfer window; next opening in %.0f min",
+                     direction, wait / 60)
+            announced = True
+        sleep(min(wait, max_nap))
+
+
+def _gate(adapter: Adapter, host: HostBudget, schedules: dict, *,
+          stop_at_window_end: bool = True) -> None:
     put, get = adapter.put, adapter.get
     log = logging.getLogger("ferry.host")
 
@@ -67,15 +97,22 @@ def _hold_slots(adapter: Adapter, host: HostBudget) -> None:
         log.info("waiting for a host %s slot (%d in use by other ferry transfers)",
                  direction, slots)
 
-    def limited_put(local: Path, remote: str) -> None:
-        with host.slot("upload", on_wait=waiting):
+    def limit(direction: str):
+        # Stop the backend when the window closes; the part is retried in the next window.
+        close = seconds_until_close(schedules[direction]) if stop_at_window_end else None
+        return transfer_deadline(close)
+
+    def gated_put(local: Path, remote: str) -> None:
+        wait_for_window("upload", schedules["upload"])
+        with host.slot("upload", on_wait=waiting), limit("upload"):
             put(local, remote)
 
-    def limited_get(remote: str, local: Path) -> None:
-        with host.slot("download", on_wait=waiting):
+    def gated_get(remote: str, local: Path) -> None:
+        wait_for_window("download", schedules["download"])
+        with host.slot("download", on_wait=waiting), limit("download"):
             get(remote, local)
 
-    adapter.put, adapter.get = limited_put, limited_get
+    adapter.put, adapter.get = gated_put, gated_get
 
 
 def preflight(job: Job, adapter: Adapter, *, allow_proxy: bool = False, routes=None) -> Preflight:

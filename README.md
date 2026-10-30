@@ -258,6 +258,26 @@ extra transfers wait for a slot. A job's own cap still applies when it is lower,
 `ferry doctor` shows the effective rates. Programs other than ferry are not covered: to
 cap a whole machine regardless of the tool, shape traffic at the OS (`tc`) or the router.
 
+## Transfer windows
+
+Uploads and downloads can be restricted to certain hours, e.g. a shared home uplink at
+night or avoiding market hours on a trading host. Same keys in a job's `[remote]` and in
+`host.toml` (both must allow a transfer):
+
+```toml
+upload_allowed = ["* 04:00-07:00 Asia/Shanghai"]          # only start uploads here
+download_blocked = ["Mon-Fri 09:15-15:30 Asia/Shanghai"]  # never during market hours
+```
+
+Days are `Mon-Fri`, `Sat,Sun` or `*`; a window must end after it starts on the same day
+(split overnight ranges in two). Outside a window ferry waits and logs when it opens next;
+`ferry doctor` shows the state. When a window closes, a transfer still running is
+stopped and its part is retried in the next window (`stop_at_window_end = true`, the
+default, in `[remote]` or `host.toml`); set it to `false` to let the part finish
+instead. Interrupted backend uploads restart that part from zero, so keep `part_size`
+small (e.g. `256MiB`) on jobs with tight windows.
+This is separate from `sender.read_blocked`, which only pauses packing (source reads).
+
 ## Egress
 
 Proxy traffic is metered, so by default ferry insists on a direct path:

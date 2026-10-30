@@ -23,7 +23,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from .job import parse_schedule
 from .sizes import parse_size
+from .windows import Schedule
 
 DIRECTIONS = ("upload", "download")
 
@@ -50,6 +52,12 @@ class HostBudget:
     max_transfers: int | None = None  # None: no slot limit
     slot_dir: Path = Path()
     source: Path | None = None
+    upload_schedule: Schedule = Schedule()
+    download_schedule: Schedule = Schedule()
+    stop_at_window_end: bool = True
+
+    def schedule(self, direction: str) -> Schedule:
+        return self.upload_schedule if direction == "upload" else self.download_schedule
 
     def rate(self, direction: str) -> int | None:
         return self.upload_rate if direction == "upload" else self.download_rate
@@ -67,7 +75,8 @@ class HostBudget:
 
     @property
     def active(self) -> bool:
-        return bool(self.upload_rate or self.download_rate or self.max_transfers)
+        return bool(self.upload_rate or self.download_rate or self.max_transfers
+                    or self.upload_schedule or self.download_schedule)
 
     @contextmanager
     def slot(self, direction: str, *, poll: float = 1.0, on_wait=None):
@@ -109,7 +118,9 @@ def load_host_budget(path: Path | None = None) -> HostBudget:
         return HostBudget(slot_dir=slot_dir)
     with path.open("rb") as f:
         data = tomllib.load(f)
-    unknown = set(data) - {"upload_rate", "download_rate", "max_transfers", "slot_dir"}
+    known = {"upload_rate", "download_rate", "max_transfers", "slot_dir", "upload_allowed",
+             "upload_blocked", "download_allowed", "download_blocked", "stop_at_window_end"}
+    unknown = set(data) - known
     if unknown:
         raise ValueError(f"{path}: unknown host settings {sorted(unknown)}")
     up, down = parse_size(data.get("upload_rate")), parse_size(data.get("download_rate"))
@@ -120,4 +131,6 @@ def load_host_budget(path: Path | None = None) -> HostBudget:
         raise ValueError(f"{path}: max_transfers must be a positive integer")
     if "slot_dir" in data:
         slot_dir = Path(os.path.expanduser(data["slot_dir"]))
-    return HostBudget(up, down, max_transfers, slot_dir, path)
+    return HostBudget(up, down, max_transfers, slot_dir, path,
+                      parse_schedule(data, "upload"), parse_schedule(data, "download"),
+                      bool(data.get("stop_at_window_end", True)))

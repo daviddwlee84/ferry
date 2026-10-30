@@ -15255,3 +15255,292 @@ _**Agent (gpt-6-astra 2026-10-30 14:58:18Z)**_
 - 分支：`feat/config-wizard`
 - 未納入 `.specstory` 紀錄
 - 尚未 push
+
+---
+
+_**User (2026-10-30 15:00:39Z)**_
+
+just opened https://github.com/daviddwlee84/ferry/pull/4
+
+你可以幫我補上描述
+
+然後依序merge PR 3 & 4？
+
+（我local已check out to main）
+
+---
+
+_**Agent (gpt-6-astra 2026-10-30 15:00:50Z)**_
+
+我會先確認兩個 PR 的最新內容與 checks，替 PR #4 補上描述，再依序合併 #3、#4；合併 #3 後會重新檢查 #4 是否有衝突。操作會透過 GitHub，不切換你的本機 `main` 或修改工作目錄。
+
+
+_**Agent (gpt-6-astra 2026-10-30 15:00:57Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect both PRs and repository merge settings
+
+`git status --short; git branch --show-current; gh pr view 3 --repo daviddwlee84/ferry --json number,title,body,state,isDraft,headRefName,headRefOid,baseRefName,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,files; gh pr view 4 --repo daviddwlee84/ferry --json number,title,body,state,isDraft,headRefName,headRefOid,baseRefName,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,files; gh api repos/daviddwlee84/ferry --jq '{allow_merge_commit,allow_squash_merge,allow_rebase_merge,delete_branch_on_merge}'`
+
+```text
+?? .specstory/history/
+?? .specstory/statistics.json
+main
+{"baseRefName":"main","body":"## Summary\n- `[remote] upload_rate` / `download_rate`, in bytes (`2.5MB`) or bits (`20Mbps`), overridable under `[remote.sides.<side>]`.\n- rclone: `--bwlimit UP:DOWN`; rsync: `--bwlimit`; baidupcs: BaiduPCS-Go config `max_upload_rate`/`max_download_rate` (no per-command flag, so host-wide for that OS user); local: throttled copy.\n- Backends that cannot cap (ghrelease) fail preflight instead of running at full speed.\n\nPrompted by a Baidu relay upload (~100 Mbps peaks) saturating a shared home uplink.\n\n## Test plan\n- [x] 46 tests (parsing incl. bits, per-side override, throttled local copy timing, rclone/rsync argv, BaiduPCS-Go config calls, fail-closed backend)\n- [ ] Deploy to ts_nas once reachable and confirm the uplink stays under the cap\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)","files":[{"path":"README.md","additions":23,"deletions":0,"changeType":"MODIFIED"},{"path":"src/ferry/adapters/baidupcs.py","additions":10,"deletions":0,"changeType":"MODIFIED"},{"path":"src/ferry/adapters/base.py","additions":12,"deletions":0,"changeType":"MODIFIED"},{"path":"src/ferry/adapters/local.py","additions":20,"deletions":2,"changeType":"MODIFIED"},{"path":"src/ferry/adapters/rclone.py","additions":11,"deletions":4,"changeType":"MODIFIED"},{"path":"src/ferry/adapters/rsync.py","additions":9,"deletions":3,"changeType":"MODIFIED"},{"path":"src/ferry/core.py","additions":4,"deletions":1,"changeType":"MODIFIED"},{"path":"src/ferry/job.py","additions":15,"deletions":1,"changeType":"MODIFIED"},{"path":"src/ferry/sizes.py","additions":9,"deletions":0,"changeType":"MODIFIED"},{"path":"tests/test_rates.py","additions":100,"deletions":0,"changeType":"ADDED"}],"headRefName":"feat/rate-limits","headRefOid":"c5d7afe5867d1d74557639f67c5c6a1cd301e133","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":3,"reviewDecision":"","state":"OPEN","statusCheckRollup":[],"title":"feat: per-side upload/download bandwidth caps"}
+{"baseRefName":"main","body":"","files":[{"path":".claude/plans/1-ferry-compiled-pie.md","additions":113,"deletions":0,"changeType":"ADDED"},{"path":".claude/settings.json","additions":3,"deletions":0,"changeType":"ADDED"},{"path":".specstory/history/2026-10-30_13-28-36Z-image-hash-1-branches.md","additions":1250,"deletions":0,"changeType":"ADDED"},{"path":".specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md","additions":15257,"deletions":0,"changeType":"ADDED"},{"path":".specstory/statistics.json","additions":22,"deletions":0,"changeType":"ADDED"},{"path":"README.md","additions":47,"deletions":8,"changeType":"MODIFIED"},{"path":"TODO.md","additions":4,"deletions":0,"changeType":"MODIFIED"},{"path":"docs/configuration.md","additions":54,"deletions":2,"changeType":"MODIFIED"},{"path":"docs/getting-started.md","additions":49,"deletions":0,"changeType":"MODIFIED"},{"path":"docs/index.md","additions":2,"deletions":1,"changeType":"MODIFIED"},{"path":"docs/operations.md","additions":121,"deletions":11,"changeType":"MODIFIED"},{"path":"docs/pueue.md","additions":193,"deletions":0,"changeType":"ADDED"},{"path":"src/ferry/cli.py","additions":16,"deletions":6,"changeType":"MODIFIED"},{"path":"src/ferry/wizard.py","additions":385,"deletions":0,"changeType":"ADDED"},{"path":"tests/test_service.py","additions":54,"deletions":1,"changeType":"MODIFIED"},{"path":"tests/test_wizard.py","additions":520,"deletions":0,"changeType":"ADDED"}],"headRefName":"feat/config-wizard","headRefOid":"78fc84b8aef8f9a649a5f7b46050cfa211967b82","isDraft":false,"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":4,"reviewDecision":"","state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-10-30T14:59:56Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/daviddwlee84/ferry/actions/runs/41076574421/job/124134268880","name":"build","startedAt":"2026-10-30T14:59:45Z","status":"COMPLETED","workflowName":"Documentation check and deploy"},{"__typename":"CheckRun","completedAt":"2026-10-30T14:59:56Z","conclusion":"SKIPPED","detailsUrl":"https://github.com/daviddwlee84/ferry/actions/runs/41076574421/job/124134382728","name":"deploy","startedAt":"2026-10-30T14:59:56Z","status":"COMPLETED","workflowName":"Documentation check and deploy"}],"title":"feat: config wizard"}
+{"allow_merge_commit":true,"allow_rebase_merge":true,"allow_squash_merge":true,"delete_branch_on_merge":false}
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:02:19Z)**_
+
+PR #4 的文件 build 已通過；PR #3 沒有 CI checks。我會用隔離的測試 checkout 驗證 #3，以及兩個 PR 合併後的程式與文件。另注意到 #4 包含另外提交的 `.claude`／`.specstory` 備份紀錄，我會保留目前 PR 的內容，不擅自移除。
+
+
+_**Agent (gpt-6-astra 2026-10-30 15:02:30Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Create an isolated checkout for merge validation
+
+`git fetch origin pull/3/head pull/4/head && validation_dir=$(mktemp -d /tmp/ferry-pr-merge.XXXXXX) && git worktree add --detach "$validation_dir" c5d7afe5867d1d74557639f67c5c6a1cd301e133 && printf 'Validation checkout: %s\n' "$validation_dir"`
+
+```text
+From https://github.com/daviddwlee84/ferry
+ * branch            refs/pull/3/head -> FETCH_HEAD
+ * branch            refs/pull/4/head -> FETCH_HEAD
+Preparing worktree (detached HEAD c5d7afe)
+HEAD is now at c5d7afe feat: per-side upload/download bandwidth caps
+Validation checkout: /tmp/ferry-pr-merge.ovcQEZ
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:02:48Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Test PR 3 and check compatibility with PR 4
+
+`UV_OFFLINE=1 just --justfile /tmp/ferry-pr-merge.ovcQEZ/Justfile --working-directory /tmp/ferry-pr-merge.ovcQEZ check && git -C /tmp/ferry-pr-merge.ovcQEZ merge --no-commit --no-ff 78fc84b8aef8f9a649a5f7b46050cfa211967b82`
+
+```text
+uv run ruff check src tests
+Using CPython 3.13.3
+Creating virtual environment at: .venv
+   Building ferry @ file:///private/tmp/ferry-pr-merge.ovcQEZ
+      Built ferry @ file:///private/tmp/ferry-pr-merge.ovcQEZ
+Installed 7 packages in 48ms
+All checks passed!
+uv run pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.13.3, pytest-8.4.2, pluggy-1.7.0
+rootdir: /private/tmp/ferry-pr-merge.ovcQEZ
+configfile: pyproject.toml
+testpaths: tests
+collected 46 items
+
+tests/test_egress.py ...                                                 [  6%]
+tests/test_incremental.py .....                                          [ 17%]
+tests/test_parsing.py ............                                       [ 43%]
+tests/test_rates.py ............                                         [ 69%]
+tests/test_roundtrip.py ...........                                      [ 93%]
+tests/test_service.py ...                                                [100%]
+
+============================== 46 passed in 2.56s ==============================
+Auto-merging README.md
+Automatic merge went well; stopped before committing as requested
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:03:07Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Test the combined changes and build documentation
+
+`UV_OFFLINE=1 just --justfile /tmp/ferry-pr-merge.ovcQEZ/Justfile --working-directory /tmp/ferry-pr-merge.ovcQEZ check && UV_OFFLINE=1 just --justfile /tmp/ferry-pr-merge.ovcQEZ/Justfile --working-directory /tmp/ferry-pr-merge.ovcQEZ docs-build`
+
+```text
+uv run ruff check src tests
+All checks passed!
+uv run pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.13.3, pytest-8.4.2, pluggy-1.7.0
+rootdir: /private/tmp/ferry-pr-merge.ovcQEZ
+configfile: pyproject.toml
+testpaths: tests
+collected 133 items
+
+tests/test_egress.py ...                                                 [  2%]
+tests/test_incremental.py .....                                          [  6%]
+tests/test_parsing.py ............                                       [ 15%]
+tests/test_rates.py ............                                         [ 24%]
+tests/test_roundtrip.py ...........                                      [ 32%]
+tests/test_service.py ........                                           [ 38%]
+tests/test_wizard.py ................................................... [ 76%]
+...............................                                          [100%]
+
+============================= 133 passed in 2.47s ==============================
+uv run --locked --group docs zensical build --strict
+Installed 10 packages in 313ms
+Build started
+No issues found
+Build finished in 0.25s
+uv run --locked --group docs python scripts/check-docs-site.py
+{"status": "ok", "pages": 5, "llm_pages": 5, "deployed": false}
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:03:10Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Test combined changes on Python 3.11
+
+`uv run --directory /tmp/ferry-pr-merge.ovcQEZ --offline --isolated --python 3.11 pytest -q`
+
+```text
+Installed 7 packages in 9ms
+........................................................................ [ 54%]
+.............................................................            [100%]
+133 passed in 2.55s
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:03:51Z)**_
+
+驗證已通過：PR #3 單獨是 46 個測試；#3＋#4 合併後，在 Python 3.11、3.13 都是 133 個測試通過，文件 build 與匯出檢查也成功，沒有合併衝突。現在會把這些結果寫入 #4 描述，然後依序 squash merge #3、#4。
+
+
+_**Agent (gpt-6-astra 2026-10-30 15:04:19Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Update PR 4 description and merge PR 3
+
+```bash
+gh pr edit 4 --repo daviddwlee84/ferry --body '## Summary
+
+- Add an offline, interactive `ferry init` wizard for all five backends, both unit-selection methods, tar/raw packing, and receiver configuration.
+- Keep one TOML per job. Default to `$XDG_CONFIG_HOME/ferry/jobs/<name>.toml`, falling back to `~/.config/ferry/jobs/<name>.toml` when XDG_CONFIG_HOME is unset, empty, or relative. Preserve project-local configs with `--output ./name.toml`.
+- Reuse existing systemd/cron service generation for previews and explicit install/uninstall instructions. Plain service previews no longer invoke `loginctl`.
+- Expand the English documentation with wizard onboarding, multi-job configuration, unattended-operation guidance, and a dedicated Pueue guide. Recommend queued sender batches with an independently supervised receiver to avoid ACK and relay-capacity deadlocks.
+
+## Safety and compatibility
+
+- Defaults retain source data, require direct egress, and leave extraction disabled.
+- The wizard never reads credentials, contacts backends, authenticates, transfers data, installs services, or submits queue tasks.
+- Preview and confirm before saving. Existing files, directories, and symlinks at the output path are never overwritten; managed config directories are created only after confirmation.
+- `--stdout` emits TOML only, with interactive prompts on stderr, and creates no config files or directories.
+- Preserve host-specific path semantics. Existing configs are not migrated; transfer and service commands still accept explicit TOML paths.
+- No new runtime dependencies or manifest/ledger format changes. Record existing batch-completion and interruption-status limitations as follow-up work.
+
+## Verification
+
+Validated in an isolated checkout without changing the local main working tree:
+
+- [x] PR #3 alone: `just check` — lint passed, 46 tests passed.
+- [x] Combined #3 + #4: `just check` on Python 3.13 — lint passed, 133 tests passed.
+- [x] Combined #3 + #4: offline isolated Python 3.11 run — 133 tests passed.
+- [x] Combined #3 + #4: `just docs-build` — strict build and HTML/Markdown/LLM export checks passed for 5 pages.
+- [x] Tests cover backend choices, TOML escaping, cancellation, no-overwrite behavior, XDG edge cases, multiple jobs, offline supervisor previews, and local raw/tar round trips.
+
+No live cloud transfers or real systemd/cron installations were performed; supervisor installation tests use mocks.
+
+## Additional repository files
+
+This branch also includes separately committed `.claude` plan/settings and `.specstory` conversation-history backups. These are repository records, not application runtime dependencies or documentation-site pages.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)' && gh pr merge 3 --repo daviddwlee84/ferry --squash --match-head-commit c5d7afe5867d1d74557639f67c5c6a1cd301e133 && gh pr view 3 --repo daviddwlee84/ferry --json number,state,mergedAt,mergeCommit && gh pr view 4 --repo daviddwlee84/ferry --json number,state,headRefOid,mergeable,mergeStateStatus,statusCheckRollup
+```
+
+```text
+https://github.com/daviddwlee84/ferry/pull/4
+{"mergeCommit":{"oid":"181d32108f2d1fcdcba4fa8c3e0289787ee60db5"},"mergedAt":"2026-10-30T15:04:15Z","number":3,"state":"MERGED"}
+{"headRefOid":"78fc84b8aef8f9a649a5f7b46050cfa211967b82","mergeStateStatus":"UNKNOWN","mergeable":"UNKNOWN","number":4,"state":"OPEN","statusCheckRollup":[{"__typename":"CheckRun","completedAt":"2026-10-30T14:59:56Z","conclusion":"SUCCESS","detailsUrl":"https://github.com/daviddwlee84/ferry/actions/runs/41076574421/job/124134268880","name":"build","startedAt":"2026-10-30T14:59:45Z","status":"COMPLETED","workflowName":"Documentation check and deploy"},{"__typename":"CheckRun","completedAt":"2026-10-30T14:59:56Z","conclusion":"SKIPPED","detailsUrl":"https://github.com/daviddwlee84/ferry/actions/runs/41076574421/job/124134382728","name":"deploy","startedAt":"2026-10-30T14:59:56Z","status":"COMPLETED","workflowName":"Documentation check and deploy"}]}
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:04:46Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Recheck PR 4 after PR 3 merged
+
+`gh pr view 4 --repo daviddwlee84/ferry --json number,state,headRefOid,mergeable,mergeStateStatus; gh api repos/daviddwlee84/ferry/git/commits/181d32108f2d1fcdcba4fa8c3e0289787ee60db5 --jq .message; git -C /tmp/ferry-pr-merge.ovcQEZ status --short --untracked-files=normal; git branch --show-current`
+
+```text
+{"headRefOid":"78fc84b8aef8f9a649a5f7b46050cfa211967b82","mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","number":4,"state":"OPEN"}
+feat: per-side upload/download bandwidth caps (#3)
+
+[remote] upload_rate / download_rate (bytes or bits: "2.5MB", "20Mbps"),
+overridable per side. rclone and rsync use --bwlimit; baidupcs writes
+BaiduPCS-Go's max_upload_rate/max_download_rate (host-wide for that user, it
+has no per-command flag); local throttles its copy. Backends that cannot cap
+(ghrelease) fail preflight instead of silently running at full speed.
+
+Prompted by a relay upload saturating a shared home uplink.
+
+Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+A  .claude/plans/1-ferry-compiled-pie.md
+A  .claude/settings.json
+A  .specstory/history/2026-10-30_13-28-36Z-image-hash-1-branches.md
+A  .specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md
+A  .specstory/statistics.json
+M  README.md
+M  TODO.md
+M  docs/configuration.md
+M  docs/getting-started.md
+M  docs/index.md
+M  docs/operations.md
+A  docs/pueue.md
+M  src/ferry/cli.py
+A  src/ferry/wizard.py
+M  tests/test_service.py
+A  tests/test_wizard.py
+main
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:05:10Z)**_
+
+PR #3 已合併為 `181d321`。GitHub 重新計算後，PR #4 仍是 `CLEAN`／`MERGEABLE`，而且 head 沒有變動；我現在會合併 #4，並清除剛才建立的隔離測試 checkout。
+
+
+_**Agent (gpt-6-astra 2026-10-30 15:05:23Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Merge PR 4 and remove the isolated test checkout
+
+```bash
+gh pr merge 4 --repo daviddwlee84/ferry --squash --match-head-commit 78fc84b8aef8f9a649a5f7b46050cfa211967b82 --subject "feat: add config wizard and per-job XDG defaults (#4)" --body 'Add offline interactive configuration, one config per job under XDG paths, safe supervisor previews, and English Pueue and unattended-operation guides.
+
+Co-Authored-By: Claude Code <noreply@anthropic.com>' && gh pr view 4 --repo daviddwlee84/ferry --json number,state,mergedAt,mergeCommit,url && git -C /tmp/ferry-pr-merge.ovcQEZ merge --abort && git worktree remove --force /tmp/ferry-pr-merge.ovcQEZ && git status --short && git branch --show-current && gh run list --repo daviddwlee84/ferry --branch main --limit 3 --json databaseId,displayTitle,status,conclusion,headSha,url
+```
+
+```text
+{"mergeCommit":{"oid":"46a2043e1a611bbaea19cc25b5830ecdcb4e3de1"},"mergedAt":"2026-10-30T15:05:18Z","number":4,"state":"MERGED","url":"https://github.com/daviddwlee84/ferry/pull/4"}
+?? .specstory/history/
+?? .specstory/statistics.json
+main
+[{"conclusion":"success","databaseId":41064175336,"displayTitle":"ci(docs): deploy documentation to GitHub Pages","headSha":"f32b2ca67140ecc84fa8e632b66e8b28face4c78","status":"completed","url":"https://github.com/daviddwlee84/ferry/actions/runs/41064175336"},{"conclusion":"success","databaseId":41060863454,"displayTitle":"feat(docs): add English Zensical documentation pilot (#2)","headSha":"af788b40d2c5b0dc8cab74428c0b885c93f8294e","status":"completed","url":"https://github.com/daviddwlee84/ferry/actions/runs/41060863454"}]
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 15:06:03Z)**_
+
+PR #4 的描述已補上，並已依序 **squash merge**：
+
+| PR | 狀態 | Merge commit |
+|---|---|---|
+| [#3：Bandwidth caps](https://github.com/daviddwlee84/ferry/pull/3) | 已合併 | `181d321` |
+| [#4：Config wizard](https://github.com/daviddwlee84/ferry/pull/4) | 已合併 | `46a2043` |
+
+合併前已在隔離 checkout 驗證：
+- Python 3.11、3.13：各 **133 tests passed**
+- Lint、文件 strict build 與匯出檢查通過
+- 兩個 PR 無合併衝突
+
+本機仍在 `main`，未 pull、未修改你的工作檔案。注意 `.specstory` 有未追蹤檔案與遠端新增路徑重疊，之後更新本機 `main` 前需先備份／處理，避免 Git 阻擋更新。

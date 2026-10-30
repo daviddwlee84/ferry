@@ -1,4 +1,4 @@
-name: Documentation check
+name: Documentation check and deploy
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: docs-check-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,4 +27,23 @@ jobs:
       - run: uv sync --locked --only-group docs
       - run: uv run --no-sync zensical build --strict
       - run: uv run --no-sync python scripts/check-docs-site.py
-      # Deliberately no deployment, Pages permissions, or public preview.
+      - name: Upload GitHub Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

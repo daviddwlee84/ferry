@@ -17,5 +17,6 @@ often old (CentOS 7 via uv-managed Python), without root, with restricted egress
 - Documentation uses an English Zensical pilot: `just docs-setup`, `just docs-build`,
   `just docs-serve`. Keep Zensical in the `docs` dependency group, never runtime deps.
   Preserve `docs/` and `zensical.toml`; do not apply the MkDocs recipe from installed
-  generic Python skills. The workflow checks builds only; Pages publishing requires
-  separate approval. No multilingual fallback is implemented in this pilot.
+  generic Python skills. The workflow checks pull requests and publishes GitHub
+  Pages from `main`; Pages publishing was explicitly authorized by the user.
+  No multilingual fallback is implemented in this pilot.

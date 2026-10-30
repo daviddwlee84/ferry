@@ -28,9 +28,13 @@ ferry send  ── pack ─▶ stage ─ push ─▶  prefix/<key>/part-*   ─ 
 
 ## Documentation
 
-Read the [English documentation](docs/index.md) for a safe local quickstart,
-configuration reference, and operational guidance. The Zensical site is a local
-pilot; GitHub Pages has not been enabled or published.
+Read the [English documentation](https://daviddwlee84.github.io/ferry/) for a safe
+local quickstart, configuration reference, and operational guidance. The
+[Markdown sources](docs/index.md) are also available in this repository.
+
+GitHub Actions checks documentation on pull requests and deploys the Zensical
+site to GitHub Pages after documentation changes reach `main`. The workflow can
+also be run manually on `main` to rebuild and deploy the site.
 
 ```bash
 just docs-setup   # install the locked docs group alongside dev dependencies

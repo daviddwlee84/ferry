@@ -1,0 +1,48 @@
+# Created by zensical-site-bootstrap; project-owned after initialization.
+[project]
+site_name = "ferry"
+site_url = "https://daviddwlee84.github.io/ferry/"
+repo_url = "https://github.com/daviddwlee84/ferry"
+edit_uri = "edit/main/docs/"
+docs_dir = "docs"
+site_dir = "site"
+
+[project.theme]
+language = "en"
+features = [
+  "content.action.edit",
+  "content.action.copy",
+  "content.code.copy",
+  "navigation.footer",
+  "navigation.sections",
+  "navigation.top",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+toc.permalink = true
+pymdownx.details = {}
+pymdownx.highlight.pygments_lang_class = true
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+
+[project.plugins.llmstxt]
+full_output = "llms-full.txt"
+
+[project.plugins.llmstxt.sections]
+# **/*.md alone omits root pages in the tested Zensical release.
+Documentation = ["*.md", "**/*.md"]

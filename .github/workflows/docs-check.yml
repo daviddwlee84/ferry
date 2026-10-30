@@ -1,0 +1,30 @@
+name: Documentation check
+
+on:
+  pull_request:
+    paths: ['docs/**', 'zensical.toml', 'pyproject.toml', 'uv.lock', 'scripts/check-docs-site.py', '.github/workflows/docs-check.yml']
+  push:
+    branches: [main]
+    paths: ['docs/**', 'zensical.toml', 'pyproject.toml', 'uv.lock', 'scripts/check-docs-site.py', '.github/workflows/docs-check.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      # Let uv honor the consuming project's Python requirement.
+      - run: uv sync --locked --only-group docs
+      - run: uv run --no-sync zensical build --strict
+      - run: uv run --no-sync python scripts/check-docs-site.py
+      # Deliberately no deployment, Pages permissions, or public preview.

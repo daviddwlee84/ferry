@@ -26,6 +26,27 @@ ferry send  ── pack ─▶ stage ─ push ─▶  prefix/<key>/part-*   ─ 
   byte-identical-size copy; for regenerable data) or `after_receiver_ack` (after the
   destination verified sha256).
 
+## Documentation
+
+Read the [English documentation](docs/index.md) for a safe local quickstart,
+configuration reference, and operational guidance. The Zensical site is a local
+pilot; GitHub Pages has not been enabled or published.
+
+```bash
+just docs-setup   # install the locked docs group alongside dev dependencies
+just docs-build   # strict site build plus HTML/Markdown/LLM artifact checks
+just docs-serve              # http://127.0.0.1:8000
+just docs-serve 8769         # use another port if 8000 is occupied
+just docs-serve 8769 0.0.0.0 # optional: expose preview on all interfaces
+```
+
+`docs-serve` takes an optional port followed by an optional host. Keep the
+loopback default unless network access is intentional; binding `0.0.0.0` exposes
+the preview to other hosts allowed by your firewall. Do not stop another service
+just to reclaim port 8000.
+
+Documentation tooling is not part of ferry's runtime dependencies.
+
 ## Install
 
 ```bash

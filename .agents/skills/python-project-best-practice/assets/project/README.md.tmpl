@@ -1,0 +1,120 @@
+# PROJECT_SLUG_PLACEHOLDER
+
+PROJECT_DESCRIPTION_PLACEHOLDER
+
+## Getting started
+
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and,
+optionally, [just](https://github.com/casey/just).
+
+```bash
+git clone https://github.com/OWNER_PLACEHOLDER/PROJECT_SLUG_PLACEHOLDER
+cd PROJECT_SLUG_PLACEHOLDER
+
+uv sync              # creates .venv from uv.lock, installs dev tools too
+just check           # format + lint + types + tests: the whole gate
+```
+
+`uv sync` pins the interpreter from `.python-version` and installs it if it is
+missing - you do not need a system Python of that version.
+
+You never have to activate the virtualenv: `uv run <cmd>` uses it. If you
+prefer an activated shell, `source .venv/bin/activate`, or install
+[direnv](https://direnv.net/) and run `direnv allow` to pick up `.envrc`.
+
+# __IF:cli,lib,api,ml,rust__
+## Use it
+
+```bash
+uv run PROJECT_SLUG_PLACEHOLDER --help
+uv run PROJECT_SLUG_PLACEHOLDER hello --name ada --times 2
+uv run PROJECT_SLUG_PLACEHOLDER info          # resolved config as JSON
+```
+
+## Install it
+
+No PyPI release needed - install straight from git:
+
+```bash
+uv tool install git+https://github.com/OWNER_PLACEHOLDER/PROJECT_SLUG_PLACEHOLDER@v0.1.0
+PROJECT_SLUG_PLACEHOLDER --help
+```
+
+Or run it once without installing:
+
+```bash
+uvx --from git+https://github.com/OWNER_PLACEHOLDER/PROJECT_SLUG_PLACEHOLDER PROJECT_SLUG_PLACEHOLDER --help
+```
+
+### Shell completion
+
+Built into tyro. Nothing else to install:
+
+```bash
+# zsh
+mkdir -p ~/.zfunc
+PROJECT_SLUG_PLACEHOLDER --tyro-write-completion zsh ~/.zfunc/_PROJECT_SLUG_PLACEHOLDER
+# then in ~/.zshrc:  fpath+=~/.zfunc && autoload -Uz compinit && compinit
+
+# bash
+dir="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+mkdir -p "$dir"
+PROJECT_SLUG_PLACEHOLDER --tyro-write-completion bash "$dir/PROJECT_SLUG_PLACEHOLDER"
+```
+
+## Configuration
+
+Every setting has a default, can be overridden in `.env`, and can be overridden
+again by an environment variable prefixed `ENV_PREFIX_PLACEHOLDER`. Copy
+`.env.example` to `.env` to start. `PROJECT_SLUG_PLACEHOLDER info` prints what
+the program actually resolved.
+# __END__
+
+# __IF:api__
+## HTTP API
+
+```bash
+just serve            # http://127.0.0.1:8000
+```
+
+Interactive OpenAPI docs at `/docs` (Swagger UI) and `/redoc`; the raw schema
+is at `/openapi.json`.
+# __END__
+
+# __IF:ml__
+## Notebooks
+
+`notebooks/` holds exploratory [marimo](https://marimo.io/) notebooks. They are
+real `.py` files, so they diff, lint, and test like any other module.
+
+```bash
+just notebook                                  # interactive
+uv run notebooks/example.py --help             # the same notebook as a CLI
+```
+# __END__
+
+# __IF:rust__
+## Rust extension
+
+```bash
+just build-rust       # uv run maturin develop --uv
+```
+
+`uv sync` does **not** rebuild the Rust extension. Re-run `just build-rust`
+after every change under `rust/`.
+# __END__
+
+## Development
+
+```bash
+just --list           # every supported operation
+just check            # what CI runs
+just cov              # tests with a coverage floor
+```
+
+See [AGENTS.md](AGENTS.md) for the layout and the conventions this project
+holds itself to.
+
+## License
+
+MIT

@@ -1,0 +1,31 @@
+"""Tests for the domain layer.
+
+Tests live outside src/ on purpose: with a src layout `uv run pytest` imports
+the INSTALLED package, so a missing __init__.py or missing package data fails
+here instead of in a user's install.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from PACKAGE_NAME_PLACEHOLDER import __version__
+from PACKAGE_NAME_PLACEHOLDER.core import greet
+
+
+def test_version_is_importable() -> None:
+    assert __version__
+
+
+def test_greet_defaults() -> None:
+    assert greet("world") == ["Hello, world!"]
+
+
+def test_greet_repeats() -> None:
+    assert greet("ada", 3) == ["Hello, ada!"] * 3
+
+
+@pytest.mark.parametrize("times", [0, -1])
+def test_greet_rejects_non_positive(times: int) -> None:
+    with pytest.raises(ValueError, match="times must be >= 1"):
+        greet("ada", times)

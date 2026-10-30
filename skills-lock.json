@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "skills": {
+    "project-knowledge-harness": {
+      "source": "daviddwlee84/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/local/project-knowledge-harness/SKILL.md",
+      "computedHash": "530cfe20078829c2173b667424dbe11d7893a7303c8cfb129c4d5f6d57c9e8f0"
+    },
+    "pueue-job-queue": {
+      "source": "daviddwlee84/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/local/pueue-job-queue/SKILL.md",
+      "computedHash": "f09862fee433ea238b97595f7c598c09b119488f508d731607b8eade60529568"
+    },
+    "python-project-best-practice": {
+      "source": "daviddwlee84/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/local/python-project-best-practice/SKILL.md",
+      "computedHash": "7b295edcea518f1bccf39712bb9bc748ff4b7bb7fd26eada7f3dffffbc3112d7"
+    },
+    "zensical-site-bootstrap": {
+      "source": "daviddwlee84/agent-skills",
+      "ref": "61723bd2eb4a0ea961e5ddd3ec3eccd7194ce5b7",
+      "sourceType": "github",
+      "skillPath": "skills/local/zensical-site-bootstrap/SKILL.md",
+      "computedHash": "3ececabda3837bec6935bb20c64a838486a19adb4b3eb9bf87ae2b113f47f804"
+    }
+  }
+}

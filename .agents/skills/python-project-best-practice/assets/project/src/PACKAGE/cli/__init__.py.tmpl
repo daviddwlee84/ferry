@@ -1,0 +1,33 @@
+"""CLI entry point.
+
+Exit codes:
+    0  success
+    1  unexpected runtime error
+    2  usage error (emitted by tyro/argparse)
+    4  validation error
+
+Shell completion is built into tyro - no shtab wiring required:
+    PROJECT_SLUG_PLACEHOLDER --tyro-write-completion zsh ~/.zfunc/_PROJECT_SLUG_PLACEHOLDER
+"""
+
+from __future__ import annotations
+
+import tyro
+
+from PACKAGE_NAME_PLACEHOLDER._log import configure
+from PACKAGE_NAME_PLACEHOLDER.cli.commands import Hello, Info
+from PACKAGE_NAME_PLACEHOLDER.settings import Settings
+
+# A Union of dataclasses becomes a subcommand group; the subcommand name is the
+# kebab-case class name. Add a command by adding it here and to __all__.
+Command = Hello | Info
+
+__all__ = ["Command", "Hello", "Info", "main"]
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Parse ``argv`` and run the selected subcommand. Returns an exit code."""
+    settings = Settings()
+    configure(level=settings.log_level, json=settings.log_json)
+    command = tyro.cli(Command, args=argv, prog="PROJECT_SLUG_PLACEHOLDER")
+    return command.run()

@@ -1,0 +1,62 @@
+"""One frozen dataclass per subcommand.
+
+Each command is data: its fields become flags, and ``run()`` returns a process
+exit code. Tests construct and run commands directly, with no argument parsing
+in the way.
+
+Split this module once it passes ~200 lines - ``cli/hello.py``, ``cli/info.py``,
+each exporting one dataclass, re-exported from ``cli/__init__.py``.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+import sys
+
+from PACKAGE_NAME_PLACEHOLDER.core import greet
+from PACKAGE_NAME_PLACEHOLDER.settings import Settings
+
+
+@dataclasses.dataclass(frozen=True)
+class Hello:
+    """Print a greeting."""
+
+    name: str = "world"
+    """Who to greet."""
+
+    times: int = 1
+    """How many times to repeat the greeting."""
+
+    dry_run: bool = False
+    """Report what would be printed, print nothing."""
+
+    def run(self) -> int:
+        try:
+            lines = greet(self.name, self.times)
+        except ValueError as exc:
+            print(f"error: {exc}; pass --times with a positive integer", file=sys.stderr)
+            return 4
+        if self.dry_run:
+            print(f"would print {len(lines)} line(s)", file=sys.stderr)
+            return 0
+        for line in lines:
+            print(line)
+        return 0
+
+
+@dataclasses.dataclass(frozen=True)
+class Info:
+    """Print the fully resolved configuration as JSON, then exit.
+
+    This is the ``--print-config`` surface: it shows what the program sees
+    after defaults, .env, and environment variables have been merged, so a
+    user can diff it against what they edited.
+    """
+
+    def run(self) -> int:
+        from PACKAGE_NAME_PLACEHOLDER import __version__
+
+        payload = {"version": __version__, "settings": Settings().model_dump()}
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0

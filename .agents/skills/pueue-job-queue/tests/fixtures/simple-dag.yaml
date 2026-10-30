@@ -1,0 +1,13 @@
+version: 1
+tasks:
+  a:
+    cmd: 'echo a'
+  b:
+    cmd: 'echo b'
+    after: [a]
+  c:
+    cmd: 'echo c'
+    after: [a]
+  d:
+    cmd: 'echo d'
+    after: [b, c]

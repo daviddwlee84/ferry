@@ -1,0 +1,22 @@
+"""Tests for the compiled extension.
+
+These also serve as the build check: if `rust/` was edited and not rebuilt,
+the assertions here still pass against the STALE binary. Run
+`just build-rust` first - `uv sync` alone will not rebuild it.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from PACKAGE_NAME_PLACEHOLDER import _rust
+from PACKAGE_NAME_PLACEHOLDER.core import greet
+
+
+def test_rust_matches_python() -> None:
+    assert _rust.greet("ada", 2) == greet("ada", 2)
+
+
+def test_rust_rejects_non_positive() -> None:
+    with pytest.raises(ValueError, match="times must be >= 1"):
+        _rust.greet("ada", 0)

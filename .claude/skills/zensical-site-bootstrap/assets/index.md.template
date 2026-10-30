@@ -1,0 +1,21 @@
+# {{SITE_NAME}}
+
+English documentation for this project. Replace this introduction with a
+project overview, then add Markdown pages under `docs/`.
+
+## Development
+
+```bash
+uv sync --locked --only-group docs
+uv run --no-sync zensical serve --dev-addr 127.0.0.1:8000
+```
+
+## Build and check
+
+```bash
+uv run --no-sync zensical build --strict
+uv run --no-sync python scripts/check-docs-site.py
+```
+
+The build produces HTML, a searchable site, Markdown exports, `llms.txt`, and
+`llms-full.txt`. Building does not publish the site.

@@ -1,0 +1,9 @@
+"""Type stubs for the compiled Rust extension.
+
+maturin ships a `.so`; type checkers, editors, and language servers see
+nothing inside it. Without this file `ty`/`mypy` report
+`Module PACKAGE_NAME_PLACEHOLDER has no member _rust` and autocomplete is
+empty. Nothing generates this - keep it in sync with rust/src/lib.rs by hand.
+"""
+
+def greet(name: str, times: int = 1) -> list[str]: ...

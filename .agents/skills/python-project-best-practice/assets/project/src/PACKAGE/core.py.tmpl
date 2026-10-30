@@ -1,0 +1,25 @@
+"""Domain logic. Import-safe, side-effect free, no CLI or logging setup here.
+
+Library modules use the standard library logger and never configure logging.
+Configuration is the application's job (see ``_log.py``) - a library that
+calls ``loguru.logger.add()`` hijacks the logging of every program that
+imports it.
+"""
+
+from __future__ import annotations
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def greet(name: str, times: int = 1) -> list[str]:
+    """Return ``times`` greetings for ``name``.
+
+    Raises:
+        ValueError: if ``times`` is not positive.
+    """
+    if times < 1:
+        raise ValueError(f"times must be >= 1, got {times}")
+    logger.debug("greeting %s %d time(s)", name, times)
+    return [f"Hello, {name}!"] * times

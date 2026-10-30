@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ty_cache/
+
+# Local environment. NEVER commit real secrets; .env.example is the tracked one.
+.env
+.envrc.local
+.direnv/
+
+# __IF:ml__
+# Notebooks / experiments
+.marimo.toml
+mlruns/
+outputs/
+# __END__
+
+# __IF:rust__
+target/
+# __END__

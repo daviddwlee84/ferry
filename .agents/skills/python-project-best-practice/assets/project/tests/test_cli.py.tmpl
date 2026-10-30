@@ -1,0 +1,45 @@
+"""Tests for the CLI surface.
+
+``main()`` takes argv explicitly, so commands are testable without spawning a
+subprocess. The exit-code contract documented in cli/__init__.py is asserted
+here - if you change a code, this file should fail.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from PACKAGE_NAME_PLACEHOLDER.cli import main
+from PACKAGE_NAME_PLACEHOLDER.cli.commands import Hello
+
+
+def test_hello_prints_greeting(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["hello", "--name", "ada"]) == 0
+    assert capsys.readouterr().out.strip() == "Hello, ada!"
+
+
+def test_hello_dry_run_writes_nothing_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["hello", "--dry-run"]) == 0
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "would print" in captured.err
+
+
+def test_hello_invalid_times_exits_4(capsys: pytest.CaptureFixture[str]) -> None:
+    assert Hello(times=0).run() == 4
+    assert "times must be >= 1" in capsys.readouterr().err
+
+
+def test_info_emits_parseable_json(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["info"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "version" in payload
+    assert "log_level" in payload["settings"]
+
+
+def test_bad_usage_exits_2() -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main(["no-such-command"])
+    assert excinfo.value.code == 2

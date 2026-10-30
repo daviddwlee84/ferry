@@ -19,6 +19,9 @@ packages = ["src/ferry"]
 
 [dependency-groups]
 dev = ["pytest>=8,<9", "ruff>=0.11,<0.12"]
+docs = [
+    "zensical==0.0.73",
+]
 
 [tool.ruff]
 target-version = "py311"

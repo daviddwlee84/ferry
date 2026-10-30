@@ -1,0 +1,45 @@
+# Which template files ship with which --profile.
+#
+# Keys are DESTINATION paths (no `.tmpl` suffix, `PACKAGE` left literal - the
+# generator substitutes it). Values are space-separated profile names, or "*"
+# for every profile.
+#
+# Dropping a file into assets/project/ is NOT enough: an unlisted file is
+# never copied. new-python-project.py fails loudly when the manifest and the
+# tree disagree in either direction.
+
+[files]
+"pyproject.toml"                   = "*"
+"README.md"                        = "*"
+"AGENTS.md"                        = "*"
+"Justfile"                         = "*"
+".python-version"                  = "*"
+".gitignore"                       = "*"
+".envrc"                           = "*"
+".github/workflows/ci.yml"         = "*"
+"scripts/README.md"                = "*"
+"src/PACKAGE/__init__.py"          = "*"
+"src/PACKAGE/py.typed"             = "*"
+"src/PACKAGE/core.py"              = "*"
+"tests/test_core.py"               = "*"
+
+".env.example"                     = "cli lib api ml rust"
+"src/PACKAGE/_log.py"              = "cli lib api ml rust"
+"src/PACKAGE/settings.py"          = "cli lib api ml rust"
+"src/PACKAGE/cli/__init__.py"      = "cli lib api ml rust"
+"src/PACKAGE/cli/__main__.py"      = "cli lib api ml rust"
+"src/PACKAGE/cli/commands.py"      = "cli lib api ml rust"
+"tests/test_cli.py"                = "cli lib api ml rust"
+"scripts/sync_agent_docs.py"       = "cli lib api ml rust"
+".agents/skills/SLUG/SKILL.md"    = "cli lib api ml rust"
+
+"src/PACKAGE/api/__init__.py"      = "api"
+"src/PACKAGE/api/app.py"           = "api"
+"tests/test_api.py"                = "api"
+
+"notebooks/example.py"             = "ml"
+
+"src/PACKAGE/_rust.pyi"            = "rust"
+"tests/test_rust.py"               = "rust"
+"rust/Cargo.toml"                  = "rust"
+"rust/src/lib.rs"                  = "rust"

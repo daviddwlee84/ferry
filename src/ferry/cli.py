@@ -1,4 +1,4 @@
-"""ferry command line. Every command accepts ``--json`` for machine-readable output."""
+"""ferry command line. Inspect, transfer and supervise resumable jobs."""
 from __future__ import annotations
 
 import argparse
@@ -21,6 +21,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="ferry", description=__doc__)
     p.add_argument("--version", action="version", version=f"ferry {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
+    c = sub.add_parser("init", help="interactively create a source-preserving job (offline)")
+    c.add_argument("--output", default="job.toml", help="new job path (default: job.toml)")
+    c.add_argument("--stdout", action="store_true", help="print TOML instead of writing a file; "
+                   "still requires interactive stdin")
 
     def job_cmd(name: str, help_: str) -> argparse.ArgumentParser:
         c = sub.add_parser(name, help=help_)
@@ -68,6 +72,9 @@ def _print(args, data: dict, text: str) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "init":
+            from .wizard import run
+            return run(args.output, to_stdout=args.stdout)
         job = load_job(args.job)
         if args.command == "doctor":
             report = preflight(job, adapter_for(job, args.side), allow_proxy=args.allow_proxy)
@@ -108,13 +115,14 @@ def main(argv: list[str] | None = None) -> int:
                 if args.install:
                     path = svc.install_systemd(job, args.side, poll=args.poll)
                     print(f"installed and started {path}")
+                    if svc.linger_enabled() is False:
+                        print("note: lingering is off; the service stops at logout and does not "
+                              "start at boot. Enable with: loginctl enable-linger $USER",
+                              file=sys.stderr)
                 else:
                     print(svc.systemd_unit(job, args.side, poll=args.poll), end="")
-                linger = svc.linger_enabled()
-                if linger is False:
-                    print("note: lingering is off; the service stops at logout and does not "
-                          "start at boot. Enable with: loginctl enable-linger $USER",
-                          file=sys.stderr)
+                    print("note: surviving logout/reboot requires lingering; check your host's "
+                          "policy before using loginctl enable-linger $USER", file=sys.stderr)
             else:
                 if args.install:
                     print("installed: " + svc.install_cron(job, args.side, args.schedule,

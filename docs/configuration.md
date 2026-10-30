@@ -1,8 +1,32 @@
 # Configuration
 
-A job is a TOML file passed to each CLI command. Start with the complete
-[local quickstart](getting-started.md), then change one setting at a time.
+A job is a TOML file passed to the transfer, inspection, and service commands.
+Create one with the [interactive wizard](getting-started.md#create-a-job-interactively)
+or start with the complete [local quickstart](getting-started.md#try-an-isolated-local-relay).
 Use absolute filesystem paths for predictable behavior under supervisors.
+
+## Wizard scope and defaults
+
+`ferry init` covers both unit-selection methods, tar/raw packing, a receiver
+destination, and the five adapters below. For rsync delivery, it can add a local
+receiver override so the destination host reads its own landing directory.
+
+The wizard writes source retention (`delete_source = "never"`) and direct egress
+explicitly; extraction defaults to off. It deliberately leaves advanced tuning
+such as capacity limits, read windows, settling, and destructive policies to this
+reference. Review the generated job before changing one of those defaults.
+
+Only backend identifiers and non-secret options belong in the job. Configure
+BaiduPCS-Go, rclone, gh, or SSH authentication separately on each execution host;
+never paste tokens, passwords, or session-file contents into the wizard. Offline
+wizard validation checks configuration structure, not backend availability or
+whether the selected source pattern matches the intended data.
+
+Source and staging paths belong to the sender; the destination belongs to the
+receiver. Keep state persistent on each host and enter paths appropriate to that
+host, not paths from the laptop used to create the file. A receiver path need
+not exist locally during setup. Review both host copies of a job before running
+[doctor and plan](operations.md#inspect-before-transferring).
 
 ## Job identity and units
 

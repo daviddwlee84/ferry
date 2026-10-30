@@ -50,7 +50,7 @@ deletion policies, and destination replacement behavior.
 
 | Stage | What to do |
 |---|---|
-| Prepare | Install the required tools and write a job from a reviewed example. |
+| Prepare | Install the required tools and run `ferry init`, or write a job from a reviewed example. |
 | Inspect | Run doctor for both sides, resolve findings, then review the source units with plan. |
 | Transfer | Run send and receive on the correct hosts with matching job/relay settings. |
 | Monitor | Read each side's status on its own host; verification happens inside receive. |
@@ -61,3 +61,4 @@ deletion policies, and destination replacement behavior.
 1. [Getting started](getting-started.md): install and try an isolated local relay.
 2. [Configuration](configuration.md): define units, limits, and backend adapters.
 3. [Operations](operations.md): inspect progress, resume, and run unattended.
+4. [Pueue](pueue.md): queue sender batches while a separate receiver keeps draining the relay.

@@ -14,6 +14,40 @@ no other tools or cloud account. Other adapters require their backend CLI and
 separately configured authentication; never paste credential or session files
 into a job, diagnostic report, or issue.
 
+## Create a job interactively
+
+Run the offline wizard in an interactive terminal:
+
+```sh
+ferry init
+# Or choose a filename in an existing directory:
+ferry init --output /absolute/path/job.toml
+```
+
+The wizard asks about your source and destination, unit grouping, backend, and
+preferred run method. It previews the TOML and next commands before asking to
+save. It refuses to overwrite an existing file or symlink; choose a new filename.
+The default output is `job.toml` in the current directory.
+
+Generated jobs retain source data (`delete_source = "never"`), require direct
+egress, and default to keeping archives rather than extracting them. Backend
+login remains a separate step. The wizard does not contact a backend, inspect
+credentials, run doctor, transfer files, or install/start a service. Choosing
+systemd or cron previews a definition and prints an explicit installation command
+for you to review and run later.
+
+For a preview without saving, use `ferry init --stdout`: prompts and next steps
+go to stderr, and only the finished TOML goes to stdout. It still requires
+interactive stdin. Save that output at the proposed path before using any printed
+job or service commands. EOF or Ctrl-C cancels; no configuration is written before
+confirmation. Shell redirection can create a file independently of the wizard.
+
+Use absolute paths and distinguish sender-host paths from receiver-host paths.
+The other host's directories do not need to exist on the machine running the
+wizard. See [Configuration](configuration.md) for advanced limits, read windows,
+and source-deletion policies. For a first end-to-end test, use the isolated local
+demo below instead of an existing dataset.
+
 ## Try an isolated local relay
 
 Run these commands in one POSIX shell. They create a fresh temporary directory

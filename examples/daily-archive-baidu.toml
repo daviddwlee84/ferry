@@ -1,0 +1,24 @@
+# Evacuate a per-day dataset from a shared filesystem to an archive host via Baidu Pan.
+# Sources are deleted once Baidu holds a same-size copy (the data is regenerable);
+# use after_receiver_ack for data that must be verified at the destination first.
+name = "daily-archive"
+
+[units]
+root = "/data/shared/dataset"
+keys_from = "_manifests/*.json"                  # one unit per day
+members = ["order/{key}", "trans/{key}", "snapshot/{key}", "_manifests/{key}.json"]
+
+[sender]
+stage_dir = "~/.cache/ferry/daily-archive"
+stage_cap = "300GB"
+read_blocked = ["Mon-Fri 09:15-15:30 Asia/Shanghai"]   # keep heavy reads out of busy hours
+delete_source = "after_remote_size"
+
+[receiver]
+dest = "/srv/archive/dataset/{key[0:4]}"
+
+[remote]
+adapter = "baidupcs"
+prefix = "/ferry/daily-archive"
+min_free = "200GB"
+options = { download_threads = 4 }

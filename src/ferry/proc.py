@@ -1,0 +1,72 @@
+"""Subprocess execution for backend CLIs: proxy-free environment, quiet logs.
+
+Transfer tools print progress bars with carriage returns many times per second; those
+lines are dropped from the log (only the final progress line of each run is kept) so a
+multi-week transfer does not produce gigabytes of log.
+"""
+from __future__ import annotations
+
+import re
+import subprocess
+from pathlib import Path
+
+from .egress import clean_env
+
+_PROGRESS = re.compile(r"[↑↓]|\d+(\.\d+)?%|Transferred:|ETA ")
+
+
+class CommandError(RuntimeError):
+    def __init__(self, argv: list[str], code: int, output: str):
+        tail = "\n".join(output.strip().splitlines()[-5:])
+        super().__init__(f"{argv[0]} {argv[1] if len(argv) > 1 else ''} exited {code}: {tail}")
+        self.argv, self.code, self.output = argv, code, output
+
+
+def run(argv: list[str], *, log: Path | None = None, timeout: float | None = None,
+        check: bool = True) -> str:
+    """Run quickly-returning commands and return combined stdout+stderr."""
+    proc = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                          env=clean_env(), timeout=timeout, stdin=subprocess.DEVNULL)
+    if log is not None:
+        _append(log, argv, proc.stdout)
+    if check and proc.returncode != 0:
+        raise CommandError(argv, proc.returncode, proc.stdout)
+    return proc.stdout
+
+
+def run_transfer(argv: list[str], *, log: Path | None = None) -> str:
+    """Run a long transfer, streaming output; progress lines are not kept in the log."""
+    kept: list[str] = []
+    last_progress = ""
+    with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          env=clean_env(), stdin=subprocess.DEVNULL) as proc:
+        buf = b""
+        assert proc.stdout is not None
+        while chunk := proc.stdout.read1(65536):
+            buf += chunk
+            *lines, buf = re.split(rb"[\r\n]", buf)
+            for raw in lines:
+                line = raw.decode("utf-8", "replace").rstrip()
+                if not line:
+                    continue
+                if _PROGRESS.search(line):
+                    last_progress = line
+                else:
+                    kept.append(line)
+        if buf.strip():
+            kept.append(buf.decode("utf-8", "replace").rstrip())
+        code = proc.wait()
+    if last_progress:
+        kept.append(last_progress)
+    output = "\n".join(kept)
+    if log is not None:
+        _append(log, argv, output)
+    if code != 0:
+        raise CommandError(argv, code, output)
+    return output
+
+
+def _append(log: Path, argv: list[str], output: str) -> None:
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a") as f:
+        f.write("$ " + " ".join(argv) + "\n" + output.rstrip() + "\n")

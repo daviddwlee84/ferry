@@ -1,0 +1,14 @@
+name = "gh-small"
+
+[units]
+root = "~/outbox"
+glob = "*"
+pack = "none"
+
+[receiver]
+dest = "~/inbox"
+
+[remote]
+adapter = "ghrelease"
+prefix = "/gh-small"
+options = { repo = "OWNER/REPO", tag = "ferry-relay" }

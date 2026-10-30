@@ -1,0 +1,26 @@
+# Keep a working copy in sync with a growing, occasionally repaired source.
+# First run = backfill; --follow picks up new days and re-sends changed ones.
+name = "tick-mirror"
+
+[units]
+root = "/srv/data/ticks"
+keys_from = "trans/*"                            # one unit per date directory
+members = ["trans/{key}", "snapshot/{key}"]
+settle = "6h"
+recheck_recent = 30
+
+[sender]
+stage_dir = "/srv/scratch/ferry/tick-mirror"
+stage_cap = "50GB"
+delete_source = "never"
+
+[receiver]
+dest = "/data/ticks"                             # same layout as the source
+extract = true
+min_free = "15GB"
+
+[remote]
+adapter = "baidupcs"
+prefix = "/ferry/tick-mirror"
+# trusted_interfaces = ["Meta"]                 # a TUN you verified routes Baidu DIRECT
+options = { download_threads = 4 }

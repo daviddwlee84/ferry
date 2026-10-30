@@ -1,0 +1,16 @@
+# Google Drive is only reachable through a proxy from mainland hosts: accept it explicitly.
+name = "gdrive-share"
+
+[units]
+root = "~/exports"
+glob = "*.tar.zst"
+pack = "none"
+
+[receiver]
+dest = "~/imports"
+
+[remote]
+adapter = "rclone"
+prefix = "/ferry/gdrive-share"
+egress = "any"
+options = { remote = "gdrive:", endpoints = ["www.googleapis.com"] }

@@ -1,0 +1,12 @@
+[0] - [/relay/sample/payload.tar] --------------
+
+  类型              文件                                        
+  文件路径          /relay/sample/payload.tar  
+  文件名称          payload.tar                       
+  文件大小          5974353920, 5.564051GB                      
+  md5 (可能不正确)  e9e3cd97a02b4e96c74615ccd4e2adb8            
+  app_id            250528                                      
+  fs_id             1000000000000001                            
+  创建日期          2026-08-18 12:51:09                         
+  修改日期          2026-08-18 12:51:09                         
+

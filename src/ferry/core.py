@@ -42,7 +42,9 @@ class Preflight:
 
 def adapter_for(job: Job, side: str) -> Adapter:
     name, options = job.remote.for_side(side)
-    return make_adapter(name, options, log=job.state_dir / f"{side}.transfer.log")
+    adapter = make_adapter(name, options, log=job.state_dir / f"{side}.transfer.log")
+    adapter.upload_rate, adapter.download_rate = job.remote.rates_for_side(side)
+    return adapter
 
 
 def preflight(job: Job, adapter: Adapter, *, allow_proxy: bool = False, routes=None) -> Preflight:
@@ -50,6 +52,7 @@ def preflight(job: Job, adapter: Adapter, *, allow_proxy: bool = False, routes=N
     report = Preflight(adapter=adapter.name, egress_policy=policy,
                        proxy_env_stripped=proxy_vars_present())
     report.problems.extend(adapter.check())
+    report.problems.extend(adapter.rate_problems())
     report.egress_findings.extend(adapter.proxy_settings())
     if routes is None:
         def routes(hosts):

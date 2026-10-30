@@ -21,8 +21,13 @@ _PROXY_HINT = re.compile(r"(nc|ncat|connect|corkscrew|socat).*(-x|-X|--proxy|soc
                          re.I)
 
 
+def _bwlimit(rate: int | None) -> list[str]:
+    return [f"--bwlimit={max(1, rate // 1024)}"] if rate else []
+
+
 class RsyncAdapter(Adapter):
     name = "rsync"
+    supports_rate_limit = True
 
     def __init__(self, options: dict, log: Path | None = None):
         super().__init__(options, log)
@@ -78,13 +83,14 @@ class RsyncAdapter(Adapter):
         path = self._abs(remote)
         self._sh(f"mkdir -p {shlex.quote(posixpath.dirname(path))}")
         ssh = ["-e", shlex.join(self.ssh)] if self.host else []
-        run_transfer([self.rsync, *self.flags, *ssh, str(local), self._target(path)], log=self.log)
+        run_transfer([self.rsync, *self.flags, *_bwlimit(self.upload_rate), *ssh, str(local),
+                      self._target(path)], log=self.log)
 
     def get(self, remote: str, local: Path) -> None:
         local.parent.mkdir(parents=True, exist_ok=True)
         ssh = ["-e", shlex.join(self.ssh)] if self.host else []
-        run_transfer([self.rsync, *self.flags, *ssh, self._target(self._abs(remote)), str(local)],
-                     log=self.log)
+        run_transfer([self.rsync, *self.flags, *_bwlimit(self.download_rate), *ssh,
+                      self._target(self._abs(remote)), str(local)], log=self.log)
 
     def stat(self, remote: str) -> int | None:
         path = shlex.quote(self._abs(remote))

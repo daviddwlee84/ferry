@@ -20,14 +20,29 @@ Run the offline wizard in an interactive terminal:
 
 ```sh
 ferry init
-# Or choose a filename in an existing directory:
+# Or keep a config in your project instead:
+ferry init --output ./photos.toml
+# Explicit output paths require an existing parent directory:
 ferry init --output /absolute/path/job.toml
 ```
 
 The wizard asks about your source and destination, unit grouping, backend, and
 preferred run method. It previews the TOML and next commands before asking to
-save. It refuses to overwrite an existing file or symlink; choose a new filename.
-The default output is `job.toml` in the current directory.
+save. It refuses to overwrite an existing file or symlink; choose a new job name
+or explicit output path.
+
+Each job gets its own config. The default is
+`$XDG_CONFIG_HOME/ferry/jobs/<name>.toml`, falling back to
+`~/.config/ferry/jobs/<name>.toml` when `XDG_CONFIG_HOME` is unset, empty, or
+relative. For example, entering `photos` creates `photos.toml`, while another
+run with `market-data` creates a separate `market-data.toml`. Choose distinct
+job names and runtime/relay paths for independent syncs; see
+[config locations and multiple jobs](configuration.md#config-locations-and-multiple-jobs).
+
+The managed config directory is created only after confirmation. No existing
+project-local configs are moved; `--output ./job.toml` preserves that workflow.
+Use the printed config path with `ferry send`, `receive`, and `service`—those
+commands do not look up jobs by name.
 
 Generated jobs retain source data (`delete_source = "never"`), require direct
 egress, and default to keeping archives rather than extracting them. Backend

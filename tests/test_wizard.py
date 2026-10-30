@@ -16,6 +16,12 @@ class Terminal(io.StringIO):
         return True
 
 
+@pytest.fixture(autouse=True)
+def isolated_config_paths(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+
 def answers(tmp_path, *, backend="local", selection="glob", pack="tar", side="sender",
             method="manual", confirm="yes", extract="no", local_receiver="yes"):
     values = ["sample", str(tmp_path / "source"), str(tmp_path / "state"),
@@ -347,7 +353,9 @@ def test_cli_stdout_and_default_output(tmp_path, monkeypatch, offline, capsys):
             assert job_from_dict(tomllib.loads(out.out)).name == "sample"
             assert list(tmp_path.iterdir()) == []
         else:
-            assert out.out == "" and load_job(tmp_path / "job.toml").name == "sample"
+            path = tmp_path / "config/ferry/jobs/sample.toml"
+            assert out.out == "" and load_job(path).name == "sample"
+            assert not (tmp_path / "job.toml").exists()
 
 
 def test_cli_init_dispatches_without_loading_job(tmp_path, monkeypatch, offline, capsys):
@@ -390,3 +398,123 @@ def test_generated_job_local_roundtrip(tmp_path, pack):
     assert result.verified == 1 and not result.failed
     assert (tmp_path / "destination/hello.txt").read_bytes() == content
     assert (src / "hello.txt").read_bytes() == content
+
+
+@pytest.mark.parametrize("xdg", [None, "", "relative/config", "~/config", "custom"])
+def test_default_output_honors_xdg_spec(tmp_path, monkeypatch, xdg):
+    expected_root = tmp_path / "home/.config"
+    if xdg is None:
+        monkeypatch.delenv("XDG_CONFIG_HOME")
+    elif xdg == "custom":
+        expected_root = tmp_path / 'custom config 渡船 "quoted"'
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(expected_root))
+    else:
+        monkeypatch.setenv("XDG_CONFIG_HOME", xdg)
+    assert wizard.default_output("photos") == expected_root / "ferry/jobs/photos.toml"
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("name", ["../escape", "/absolute", "", "a/b"])
+def test_default_output_requires_safe_name(name):
+    with pytest.raises(ValueError):
+        wizard.default_output(name)
+
+
+@pytest.mark.parametrize("ending", ["decline", "eof", "stdout"])
+def test_xdg_directory_not_created_without_save(tmp_path, ending, offline):
+    values = answers(tmp_path, confirm="no" if ending == "decline" else "yes")
+    if ending == "eof":
+        values.pop()
+    stdin = Terminal("\n".join(values) + "\n")
+    stdout, stderr = io.StringIO(), io.StringIO()
+    result = wizard.run(stdin=stdin, stdout=stdout, stderr=stderr, to_stdout=ending == "stdout")
+    assert result == (2 if ending == "eof" else 0)
+    assert list(tmp_path.iterdir()) == []
+    if ending == "stdout":
+        assert job_from_dict(tomllib.loads(stdout.getvalue())).name == "sample"
+        assert str(tmp_path / "config/ferry/jobs/sample.toml") in stderr.getvalue()
+
+
+def test_multiple_jobs_keep_distinct_paths_and_defaults(tmp_path, monkeypatch, offline):
+    monkeypatch.chdir(tmp_path)
+    legacy = tmp_path / "job.toml"
+    legacy.write_text("existing project-local config\n")
+    original_confirm = wizard.Prompts.confirm
+
+    def confirm(p, label, *, default=False):
+        if label.startswith("Save to "):
+            assert not wizard.default_output(current_name).exists()
+        return original_confirm(p, label, default=default)
+
+    monkeypatch.setattr(wizard.Prompts, "confirm", confirm)
+    jobs = []
+    for current_name in ("photos", "market-data"):
+        values = answers(tmp_path)
+        values[0] = current_name
+        values[2:4] = ["", ""]
+        values[values.index("/ferry/sample")] = ""
+        stdin = Terminal("\n".join(values) + "\n")
+        assert wizard.run(stdin=stdin, stderr=io.StringIO()) == 0
+        jobs.append(load_job(wizard.default_output(current_name)))
+    assert jobs[0].path != jobs[1].path
+    assert jobs[0].state_dir != jobs[1].state_dir
+    assert jobs[0].sender.stage_dir != jobs[1].sender.stage_dir
+    assert jobs[0].remote.prefix != jobs[1].remote.prefix
+    assert legacy.read_text() == "existing project-local config\n"
+    assert not (tmp_path / "photos.toml").exists()
+
+
+def test_managed_directory_is_created_only_after_confirmation(tmp_path, monkeypatch, offline):
+    original_confirm = wizard.Prompts.confirm
+
+    def confirm(p, label, *, default=False):
+        assert not (tmp_path / "config").exists()
+        return original_confirm(p, label, default=default)
+
+    monkeypatch.setattr(wizard.Prompts, "confirm", confirm)
+    stdin = Terminal("\n".join(answers(tmp_path, method="systemd")) + "\n")
+    stderr = io.StringIO()
+    assert wizard.run(stdin=stdin, stderr=stderr) == 0
+    path = tmp_path / "config/ferry/jobs/sample.toml"
+    assert path.is_file()
+    assert service.systemd_unit(load_job(path), "sender", poll=None) in stderr.getvalue()
+
+
+@pytest.mark.parametrize("kind", ["file", "symlink", "dangling", "directory"])
+def test_xdg_collision_is_rejected_after_name(tmp_path, kind):
+    path = wizard.default_output("sample")
+    path.parent.mkdir(parents=True)
+    if kind == "file":
+        path.write_text("original\n")
+    elif kind == "directory":
+        path.mkdir()
+    else:
+        target = tmp_path / "original.toml"
+        if kind == "symlink":
+            target.write_text("original\n")
+        path.symlink_to(target)
+    stderr = io.StringIO()
+    assert wizard.run(stdin=Terminal("sample\n"), stderr=stderr) == 2
+    assert "refusing to overwrite" in stderr.getvalue()
+    if kind == "file":
+        assert path.read_text() == "original\n"
+    elif kind in ("symlink", "dangling"):
+        assert path.is_symlink()
+
+
+def test_xdg_parent_creation_failure_is_reported(tmp_path, offline):
+    (tmp_path / "config").write_text("not a directory\n")
+    stdin = Terminal("\n".join(answers(tmp_path)) + "\n")
+    stderr = io.StringIO()
+    assert wizard.run(stdin=stdin, stderr=stderr) == 2
+    assert "ferry init:" in stderr.getvalue()
+    assert (tmp_path / "config").read_text() == "not a directory\n"
+
+
+def test_explicit_relative_output_overrides_xdg(tmp_path, monkeypatch, offline):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", "/invalid\nconfig")
+    stdin = Terminal("\n".join(answers(tmp_path)) + "\n")
+    assert wizard.run("./local.toml", stdin=stdin, stderr=io.StringIO()) == 0
+    assert load_job(tmp_path / "local.toml").name == "sample"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["local.toml"]

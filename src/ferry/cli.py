@@ -22,7 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"ferry {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
     c = sub.add_parser("init", help="interactively create a source-preserving job (offline)")
-    c.add_argument("--output", default="job.toml", help="new job path (default: job.toml)")
+    c.add_argument("--output", help="explicit new job path; default: "
+                   "$XDG_CONFIG_HOME/ferry/jobs/<name>.toml "
+                   "(falls back to ~/.config/ferry/jobs/<name>.toml)")
     c.add_argument("--stdout", action="store_true", help="print TOML instead of writing a file; "
                    "still requires interactive stdin")
 

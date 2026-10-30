@@ -13854,3 +13854,1404 @@ Switched to a new branch 'feat/config-wizard'
  create mode 100644 tests/test_wizard.py
 ```
 </details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:42:25Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="Skill"><details>
+<summary>Tool use: **Skill**</summary>
+
+**Input:**
+
+- skill: `zensical-site-bootstrap`
+
+</details></tool-use>
+
+---
+
+_**User (2026-10-30 14:42:25Z)**_
+
+Skill /zensical-site-bootstrap is already loaded above; instructions unchanged.
+
+---
+
+_**Agent (gpt-6-astra 2026-10-30 14:42:33Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/ferry/wizard.py`
+
+```text
+140	    if not value.startswith("/") or not value.strip("/") or ".." in value.split("/"):
+141	        raise ValueError("use a dedicated absolute relay prefix, e.g. /ferry/my-job")
+142	    return value.rstrip("/")
+143	
+144	
+145	def _schedule(value: str) -> str:
+146	    if len(value.split()) != 5 or not re.fullmatch(r"[A-Za-z0-9*/,\- ]+", value):
+147	        raise ValueError("use five cron fields, e.g. '0 2 * * *' (without quotes)")
+148	    return value
+149	
+150	
+151	def collect(p: Prompts) -> dict:
+152	    p.say("Create a source-preserving job. This does not contact backends or start transfers.\n"
+153	          "Enter paths without shell quotes. Source paths belong to the sender; destination\n"
+154	          "paths belong to the receiver. ~/ is expanded on the host using each path.\n"
+155	          "Use separate, persistent state/staging and dedicated relay/destination directories.")
+156	    name = p.ask("Job name", "my-job", _name)
+157	    root = p.ask("Source root (sender host)", validate=_host_path)
+158	    state = p.ask("State directory (local to each host)", f"~/.local/state/ferry/{name}",
+159	                  _host_path)
+160	    stage = p.ask("Staging directory (sender host)", f"{state.rstrip('/')}/stage", _host_path)
+161	    units = {"root": root}
+162	    selection = p.choice("How should paths be grouped into units?", (
+163	        ("glob", "each matching file or directory is one unit"),
+164	        ("keys", "collect several paths per key, e.g. a date")), "glob")
+165	    if selection == "glob":
+166	        units["glob"] = p.ask("Source-relative pattern (e.g. exports/*.parquet)", "*",
+167	                              _relative_pattern)
+168	    else:
+169	        units["keys_from"] = p.ask("Key discovery pattern (file stem or directory name)",
+170	                                   "_manifests/*.json", _relative_pattern)
+171	        p.say("Enter one relative member template at a time, e.g. data/{key}.\n"
+172	              "Missing members are omitted; review with ferry plan before sending.")
+173	        members = [p.ask("Member template", validate=_member)]
+174	        while value := p.ask("Another member template (blank finishes)", "", _member):
+175	            members.append(value)
+176	        units["members"] = members
+177	    units["pack"] = p.choice("How should units be packed?", (
+178	        ("tar", "archive a file, directory, or group (supports empty member files)"),
+179	        ("none", "send one non-empty regular file per unit, unchanged")), "tar")
+180	    dest = p.ask("Destination (receiver host; optional {key} or {key[0:4]})",
+181	                 validate=_destination)
+182	    extract = False
+183	    if units["pack"] == "tar":
+184	        p.say("Extraction replaces affected destination paths, including removing stale files.\n"
+185	              "Leave it off to retain tar archives; use a dedicated destination either way.")
+186	        extract = p.confirm("Extract archives at the destination?")
+187	    adapter = p.choice("Which relay backend? Authentication must be configured separately.", (
+188	        ("local", "shared/local directory; no backend CLI"),
+189	        ("baidupcs", "Baidu Pan via authenticated BaiduPCS-Go"),
+190	        ("rclone", "an existing configured rclone remote"),
+191	        ("ghrelease", "GitHub draft release via authenticated gh"),
+192	        ("rsync", "rsync landing directory, optionally over noninteractive SSH")), "local")
+193	    options: dict = {}
+194	    sides: dict = {}
+195	    if adapter == "local":
+196	        p.say("Both hosts must see the same relay contents (adjust root per host if needed).")
+197	        options["root"] = p.ask("Relay root", validate=_host_path)
+198	    elif adapter == "baidupcs":
+199	        options["binary"] = p.ask("BaiduPCS-Go executable", "BaiduPCS-Go", _binary)
+200	    elif adapter == "rclone":
+201	        options["remote"] = p.ask("Configured remote (e.g. gdrive:)", validate=_rclone_remote)
+202	        p.say("If endpoint inference fails, set remote.options.endpoints before running doctor.")
+203	    elif adapter == "ghrelease":
+204	        options["repo"] = p.ask("GitHub repository (owner/repository)", validate=_repo)
+205	        options["tag"] = p.ask("Dedicated draft release tag", f"ferry-{name}")
+206	        p.say("Ferry creates a missing draft during transfers and refuses published releases.")
+207	    else:
+208	        options["host"] = p.ask("SSH host (blank for a local landing directory)", "", _ssh_host)
+209	        options["root"] = p.ask("Absolute landing root (on the target host)",
+210	                                validate=_absolute_path)
+211	        if options["host"] and p.confirm("Will the receiver run on that host and read locally?",
+212	                                          default=True):
+213	            sides["receiver"] = {"adapter": "local", "options": {"root": options["root"]}}
+214	    remote = {"adapter": adapter, "prefix": p.ask("Dedicated relay prefix", f"/ferry/{name}",
+215	                                                _prefix),
+216	              "egress": "direct", "options": options}
+217	    if sides:
+218	        remote["sides"] = sides
+219	    return {"name": name, "state_dir": state, "units": units,
+220	            "sender": {"stage_dir": stage, "delete_source": "never"},
+221	            "receiver": {"dest": dest, "extract": extract}, "remote": remote}
+222	
+223	
+224	def _toml_value(value: str | bool | list) -> str:
+225	    if isinstance(value, str):
+226	        # JSON's Unicode scalar strings also work in TOML, except literal DEL.
+227	        return json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
+228	    if isinstance(value, bool):
+229	        return "true" if value else "false"
+230	    if isinstance(value, list):
+231	        return "[" + ", ".join(_toml_value(item) for item in value) + "]"
+232	    raise ValueError(f"unsupported wizard value: {type(value).__name__}")
+233	
+234	
+235	def render(data: dict) -> str:
+236	    """Render the wizard's fixed schema, not arbitrary TOML keys or value types."""
+237	    lines = ["# Generated by ferry init; authentication stays in your backend tools."]
+238	
+239	    def table(values: dict, prefix: str = "") -> None:
+240	        if prefix:
+241	            lines.extend(("", f"[{prefix}]"))
+242	        for key, value in values.items():
+243	            if not isinstance(value, dict):
+244	                lines.append(f"{key} = {_toml_value(value)}")
+245	        for key, value in values.items():
+246	            if isinstance(value, dict):
+247	                table(value, f"{prefix}.{key}" if prefix else key)
+248	
+249	    table(data)
+250	    return "\n".join(lines) + "\n"
+251	
+252	
+253	def guidance(p: Prompts, job: Job) -> None:
+254	    side = p.choice("Which side will run on this host?", (
+255	        ("sender", "read, pack and upload source units"),
+256	        ("receiver", "download and verify units")), "sender")
+257	    method = p.choice("How will this side run? Nothing will be installed or started.", (
+258	        ("manual", "print the command to run yourself"),
+259	        ("systemd", "preview a Linux systemd user service"),
+260	        ("cron", "preview a periodic crontab entry"),
+261	        ("pueue", "show queue guidance; no task submission")), "manual")
+262	    p.say("\nAfter saving, inspect the job and backend access explicitly:")
+263	    p.say(shlex.join(["ferry", "doctor", str(job.path), "--side", side]))
+264	    p.say("Doctor can contact the backend and, with rsync, create a landing directory.")
+265	    if side == "sender":
+266	        p.say(shlex.join(["ferry", "plan", str(job.path)]))
+267	    if method in ("systemd", "cron"):
+268	        args = ["ferry", "service", str(job.path), "--side", side, "--kind", method]
+269	        if method == "systemd":
+270	            p.say("\nSystemd preview (Linux; verify backend PATH/authentication and linger):")
+271	            p.say(service.systemd_unit(job, side, poll=None))
+272	        else:
+273	            schedule = p.ask("Cron schedule (five fields)", "0 * * * *", _schedule)
+274	            p.say("\nCrontab preview (single pass, not a guaranteed delivery deadline):")
+275	            p.say(service.cron_line(job, side, schedule, poll=None))
+276	            args += ["--schedule", schedule]
+277	        p.say("Review first. This separate command installs the entry and may start transfers:")
+278	        p.say(shlex.join([*args, "--install"]))
+279	        p.say("To remove that entry later:")
+280	        p.say(shlex.join([*args, "--uninstall"]))
+281	    elif method == "pueue":
+282	        p.say("\nUse a separately supervised receive --follow while queueing non-follow send.\n"
+283	              "Do not queue a receiver after a sender that needs ACKs or relay space, or\n"
+284	              "put both into a shared one-slot queue. Do not queue --follow in a finite chain.\n"
+285	              "Do not let a service and pueue own the same job/side simultaneously.")
+286	        if side == "sender":
+287	            p.say("Queue this command on the sender host using the guide's labeled group setup:")
+288	            p.say(shlex.join(service.command(job, side, follow=False, poll=None)))
+289	        else:
+290	            p.say("Keep the receiver running independently under a service manager:")
+291	            p.say(shlex.join(service.command(job, side, follow=True, poll=None)))
+292	        p.say(f"Guide: {DOCS}pueue/")
+293	    else:
+294	        p.say("\nRun explicitly when ready (receiver --once only scans once):")
+295	        p.say(shlex.join(service.command(job, side, follow=False, poll=None)))
+296	    p.say(f"Advanced limits, read windows and policies: {DOCS}configuration/\n"
+297	          f"Supervision, resume and delivery checks: {DOCS}operations/")
+298	
+299	
+300	def _write_new(path: Path, text: str) -> None:
+301	    created = None
+302	    try:
+303	        with path.open("x", encoding="utf-8") as f:
+304	            created = os.fstat(f.fileno())
+305	            f.write(text)
+306	    except BaseException:
+307	        if created is not None:
+308	            try:
+309	                current = path.lstat()
+310	                if (current.st_dev, current.st_ino) == (created.st_dev, created.st_ino):
+311	                    path.unlink()
+312	            except OSError:
+313	                pass
+314	        raise
+315	
+316	
+317	def run(output: str = "job.toml", *, to_stdout: bool = False,
+318	        stdin: TextIO | None = None, stdout: TextIO | None = None,
+319	        stderr: TextIO | None = None) -> int:
+320	    stdin = sys.stdin if stdin is None else stdin
+321	    stdout = sys.stdout if stdout is None else stdout
+322	    stderr = sys.stderr if stderr is None else stderr
+323	    p = Prompts(stdin, stderr)
+324	    if not stdin.isatty():
+325	        p.say(f"ferry init: interactive stdin is required; use a terminal or the TOML examples\n"
+326	              f"at {DOCS}getting-started/. --stdout still requires interactive answers.")
+327	        return 2
+328	    try:
+329	        if not output or any(ord(c) < 32 or ord(c) == 127 for c in output):
+330	            raise ValueError("output must be a non-empty path without control characters")
+331	        path = Path(output).expanduser().absolute()
+332	        if not to_stdout:
+333	            if path.exists() or path.is_symlink():
+334	                raise ValueError(f"refusing to overwrite {path}; choose a new --output path")
+335	            if not path.parent.is_dir():
+336	                raise ValueError(f"output parent directory does not exist: {path.parent}")
+337	        data = collect(p)
+338	        text = render(data)
+339	        job = job_from_dict(tomllib.loads(text), path)
+340	        p.say("\nConfiguration preview:\n" + text)
+341	        if to_stdout:
+342	            p.say(f"No file will be written. Save the TOML at {path} before using these commands.")
+343	        guidance(p, job)
+344	        action = "Print this configuration to stdout?" if to_stdout else f"Save to {path}?"
+345	        if not p.confirm(action):
+346	            p.say("Cancelled; no configuration written.")
+347	            return 0
+348	        if to_stdout:
+349	            stdout.write(text)
+350	        else:
+351	            _write_new(path, text)
+352	            p.say(f"Saved {path}. No transfer or service was started.")
+353	        return 0
+354	    except EOFError:
+355	        p.say("\nferry init: input ended; setup cancelled.")
+356	        return 2
+357	    except KeyboardInterrupt:
+358	        p.say("\nferry init: interrupted; setup cancelled.")
+359	        return 130
+360	    except (OSError, ValueError) as e:
+361	        p.say(f"ferry init: {e}")
+362	        return 2
+363
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:42:33Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/ferry/cli.py`
+
+```text
+15	from .sender import send
+16	from .sizes import human
+17	from .status import side_status
+18	
+19	
+20	def build_parser() -> argparse.ArgumentParser:
+21	    p = argparse.ArgumentParser(prog="ferry", description=__doc__)
+22	    p.add_argument("--version", action="version", version=f"ferry {__version__}")
+23	    sub = p.add_subparsers(dest="command", required=True)
+24	    c = sub.add_parser("init", help="interactively create a source-preserving job (offline)")
+25	    c.add_argument("--output", default="job.toml", help="new job path (default: job.toml)")
+26	    c.add_argument("--stdout", action="store_true", help="print TOML instead of writing a file; "
+27	                   "still requires interactive stdin")
+28	
+29	    def job_cmd(name: str, help_: str) -> argparse.ArgumentParser:
+30	        c = sub.add_parser(name, help=help_)
+31	        c.add_argument("job", help="job TOML file")
+32	        c.add_argument("--json", action="store_true", help="print JSON")
+33	        return c
+34	
+35	    c = job_cmd("doctor", "check backend access and direct egress")
+36	    c.add_argument("--side", choices=("sender", "receiver"), default="sender")
+37	    c.add_argument("--allow-proxy", action="store_true")
+38	    job_cmd("plan", "list source units and what is left to send")
+39	    for name, help_ in (("send", "pack and push units"), ("receive", "pull and verify units")):
+40	        c = job_cmd(name, help_)
+41	        c.add_argument("--follow", action="store_true",
+42	                       help="keep running and pick up new units forever")
+43	        c.add_argument("--allow-proxy", action="store_true",
+44	                       help="accept proxied egress for this run (recorded in the ledger)")
+45	        c.add_argument("--poll", type=float, default=60, help="idle poll seconds")
+46	        if name == "receive":
+47	            c.add_argument("--once", action="store_true", help="single pass over the relay")
+48	    c = job_cmd("inventory", "receiver: fingerprint data already held and publish it so the "
+49	                "sender skips identical units")
+50	    c.add_argument("--root", help="local tree laid out like the source "
+51	                   "(default: receiver.dest when it has no {key})")
+52	    c.add_argument("--no-upload", action="store_true", help="only print the fingerprints")
+53	    c = job_cmd("service", "print or install a systemd user service / crontab entry")
+54	    c.add_argument("--side", choices=("sender", "receiver"), required=True)
+55	    c.add_argument("--kind", choices=("systemd", "cron"), default="systemd")
+56	    c.add_argument("--schedule", default="0 * * * *", help="cron schedule (kind=cron)")
+57	    c.add_argument("--poll", type=float, help="idle poll seconds passed to ferry")
+58	    g = c.add_mutually_exclusive_group()
+59	    g.add_argument("--install", action="store_true", help="write and enable it")
+60	    g.add_argument("--uninstall", action="store_true", help="disable and remove it")
+61	    c = job_cmd("status", "progress, throughput and ETA from the ledgers")
+62	    c.add_argument("--side", choices=("sender", "receiver"), default="sender")
+63	    c.add_argument("--scan-source", action="store_true", help="count remaining units (sender)")
+64	    c.add_argument("--remote", action="store_true", help="query relay free space and backlog")
+65	    return p
+66	
+67	
+68	def _print(args, data: dict, text: str) -> None:
+69	    print(json.dumps(data, indent=1, default=str) if args.json else text)
+70	
+71	
+72	def main(argv: list[str] | None = None) -> int:
+73	    args = build_parser().parse_args(argv)
+74	    try:
+75	        if args.command == "init":
+76	            from .wizard import run
+77	            return run(args.output, to_stdout=args.stdout)
+78	        job = load_job(args.job)
+79	        if args.command == "doctor":
+80	            report = preflight(job, adapter_for(job, args.side), allow_proxy=args.allow_proxy)
+81	            lines = [f"adapter: {report.adapter}  egress policy: {report.egress_policy}"]
+82	            lines += [f"  route {r['host']} -> {r['address']} via {r['interface']}"
+83	                      + (f"  !! {r['problem']}" if r["problem"] else "") for r in report.routes]
+84	            lines += [f"  problem: {x}" for x in report.problems]
+85	            shown = {f"{r['host']}: {r['problem']}" for r in report.routes if r["problem"]}
+86	            lines += [f"  egress: {x}" for x in report.egress_findings if x not in shown]
+87	            if report.proxy_env_stripped:
+88	                lines.append("  proxy env (removed for child processes): "
+89	                             + ", ".join(report.proxy_env_stripped))
+90	            lines.append("OK" if report.ok else "NOT OK")
+91	            _print(args, report.to_dict(), "\n".join(lines))
+92	            return 0 if report.ok else 2
+93	        if args.command == "plan":
+94	            units = enumerate_units(job.units)
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:42:33Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./tests/test_wizard.py`
+
+```text
+260	        values[values.index(choice)] = "1"
+261	    assert invoke(tmp_path, values)[0] == 0
+262	
+263	
+264	@pytest.mark.parametrize("validate,value", [
+265	    (wizard._member, "data/{unknown}"), (wizard._member, "../data/{key}"),
+266	    (wizard._destination, "/dest/{key[x]}"), (wizard._absolute_path, "~/landing"),
+267	    (wizard._binary, "~/bin/BaiduPCS-Go"), (wizard._binary, "--help"),
+268	    (wizard._rclone_remote, ":s3,secret=value:"), (wizard._repo, "https://github.com/a/b"),
+269	    (wizard._ssh_host, "-oProxyCommand=cmd"), (wizard._ssh_host, "host -o x"),
+270	    (wizard._schedule, "0 2 * * *\n* * * * *"),
+271	    (wizard._schedule, "0 2 * * #comment"), (wizard._schedule, "0 2 * * *;command"),
+272	])
+273	def test_field_validation(validate, value):
+274	    with pytest.raises(ValueError):
+275	        validate(value)
+276	
+277	
+278	def test_exclusive_create_race_does_not_replace_file(tmp_path, monkeypatch):
+279	    path = tmp_path / "job.toml"
+280	    original = wizard._write_new
+281	
+282	    def race(target, text):
+283	        target.write_text("another writer\n")
+284	        original(target, text)
+285	
+286	    monkeypatch.setattr(wizard, "_write_new", race)
+287	    code, _, stderr, _ = invoke(tmp_path, answers(tmp_path))
+288	    assert code == 2 and "File exists" in stderr
+289	    assert path.read_text() == "another writer\n"
+290	
+291	
+292	@pytest.mark.parametrize("error,expected", [(OSError("disk full"), 2), (KeyboardInterrupt(), 130)])
+293	def test_failed_write_cleans_only_new_file(tmp_path, monkeypatch, error, expected):
+294	    original = Path.open
+295	
+296	    class FailedWrite:
+297	        def __init__(self, stream):
+298	            self.stream = stream
+299	
+300	        def __enter__(self):
+301	            return self
+302	
+303	        def __exit__(self, *args):
+304	            self.stream.close()
+305	
+306	        def fileno(self):
+307	            return self.stream.fileno()
+308	
+309	        def write(self, text):
+310	            self.stream.write(text[:10])
+311	            self.stream.flush()
+312	            raise error
+313	
+314	    def open_file(path, mode="r", *args, **kwargs):
+315	        stream = original(path, mode, *args, **kwargs)
+316	        return FailedWrite(stream) if mode == "x" else stream
+317	
+318	    monkeypatch.setattr(Path, "open", open_file)
+319	    code, _, stderr, _ = invoke(tmp_path, answers(tmp_path))
+320	    assert code == expected
+321	    assert ("disk full" if expected == 2 else "interrupted") in stderr
+322	    assert list(tmp_path.iterdir()) == []
+323	
+324	
+325	@pytest.mark.parametrize("output", ["", "job\n.toml", "job\x00.toml", "job\x7f.toml"])
+326	def test_output_path_rejects_control_characters(tmp_path, monkeypatch, output):
+327	    monkeypatch.chdir(tmp_path)
+328	    stderr = io.StringIO()
+329	    assert wizard.run(output, stdin=Terminal(), stderr=stderr) == 2
+330	    assert "non-empty path without control characters" in stderr.getvalue()
+331	    assert list(tmp_path.iterdir()) == []
+332	
+333	
+334	def test_decline_stdout_emits_no_toml(tmp_path, offline):
+335	    code, stdout, _, _ = invoke(tmp_path, answers(tmp_path, confirm="no"), to_stdout=True)
+336	    assert code == 0 and stdout == ""
+337	    assert list(tmp_path.iterdir()) == []
+338	
+339	
+340	def test_cli_stdout_and_default_output(tmp_path, monkeypatch, offline, capsys):
+341	    monkeypatch.chdir(tmp_path)
+342	    for args in (["init", "--stdout"], ["init"]):
+343	        monkeypatch.setattr("sys.stdin", Terminal("\n".join(answers(tmp_path)) + "\n"))
+344	        assert cli.main(args) == 0
+345	        out = capsys.readouterr()
+346	        if "--stdout" in args:
+347	            assert job_from_dict(tomllib.loads(out.out)).name == "sample"
+348	            assert list(tmp_path.iterdir()) == []
+349	        else:
+350	            assert out.out == "" and load_job(tmp_path / "job.toml").name == "sample"
+351	
+352	
+353	def test_cli_init_dispatches_without_loading_job(tmp_path, monkeypatch, offline, capsys):
+354	    def forbidden(*args):
+355	        pytest.fail("init must not load an existing job")
+356	
+357	    monkeypatch.setattr(cli, "load_job", forbidden)
+358	    monkeypatch.setattr("sys.stdin", Terminal("\n".join(answers(tmp_path)) + "\n"))
+359	    assert cli.main(["init", "--output", str(tmp_path / "job.toml")]) == 0
+360	    assert capsys.readouterr().out == ""
+361	    assert load_job(tmp_path / "job.toml").name == "sample"
+362	
+363	
+364	def test_init_help_works_without_tty_or_job(monkeypatch, capsys):
+365	    monkeypatch.setattr("sys.stdin", io.StringIO())
+366	    with pytest.raises(SystemExit) as exc:
+367	        cli.main(["init", "--help"])
+368	    assert exc.value.code == 0
+369	    assert "--stdout" in capsys.readouterr().out
+370	
+371	
+372	@pytest.mark.parametrize("pack", ["none", "tar"])
+373	def test_generated_job_local_roundtrip(tmp_path, pack):
+374	    src, relay = tmp_path / "source", tmp_path / "relay"
+375	    src.mkdir()
+376	    relay.mkdir()
+377	    content = b"non-empty wizard roundtrip\n"
+378	    (src / "hello.txt").write_bytes(content)
+379	    assert invoke(tmp_path, answers(tmp_path, pack=pack, extract="yes"))[0] == 0
+380	    job = load_job(tmp_path / "job.toml")
+381	    stop = threading.Event()
+382	    watchdog = threading.Timer(10, stop.set)
+383	    watchdog.start()
+384	    try:
+385	        result = send(job, poll=0.01, stop=stop)
+386	    finally:
+387	        watchdog.cancel()
+388	    assert result.pushed == 1 and not result.failed
+389	    result = receive(job, once=True, poll=0.01)
+390	    assert result.verified == 1 and not result.failed
+391	    assert (tmp_path / "destination/hello.txt").read_bytes() == content
+392	    assert (src / "hello.txt").read_bytes() == content
+393
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:42:33Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./TODO.md`
+
+```text
+1	# TODO
+2	
+3	## P2
+4	
+5	- [ ] **[S] Per-job XDG config defaults** — Next-change proposal for multiple sync jobs: retain one TOML per job and default `ferry init` to `$XDG_CONFIG_HOME/ferry/jobs/<name>.toml` (fallback `~/.config/ferry/jobs/<name>.toml`), while explicit `--output ./name.toml` supports project-local configs. Create the managed directory only after confirmation; preserve no-overwrite behavior and explicit-path commands. Document distinct job names/state/relay prefixes; test XDG unset/empty/custom paths and name collisions. Do not migrate existing cwd configs automatically.
+6	- [ ] **[M] Batch-aware receiver completion** — `_sender_done.json` remains after a batch; a non-follow receiver started before the next sender can see an empty relay and exit early. Define a compatible completion/reset lifecycle and add repeated-batch tests before recommending that launch order.
+7	- [ ] **[S] Interrupted transfer exit status** — CLI SIGTERM sets the stop event, but send/receive can return no failures and exit 0 with work still incomplete. Return a distinct interruption status and test it without changing resumable state or treating shutdown as delivery success.
+8	- [ ] **[M] Parallel units on the push side** — one uploader per job today; useful when a single stream does not saturate the uplink (a Baidu upload was measured flat at ~10 MB/s with 1 or 2 streams on one host).
+9	- [ ] **[S] `ferry gc`** — remove orphan remote unit dirs / stale `.tmp` staging after aborted jobs, with a dry run.
+10	- [ ] **[M] Restore-on-demand** — `ferry fetch` of selected keys from an archive-only destination back to a working host.
+11	
+12	## P3
+13	
+14	- [ ] **[S] More adapters** — WebDAV/HTTP PUT, S3 presigned URLs without rclone.
+15	
+16	## Done
+17
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:42:36Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Locate default-path behavior and documentation references
+
+`rg -n 'job\.toml|output|current directory|existing directory|XDG|create-a-job' README.md docs/getting-started.md docs/configuration.md tests/test_wizard.py; git status --short`
+
+```text
+README.md:70:ferry init                         # preview, then confirm saving job.toml
+README.md:71:ferry init --output /path/job.toml  # parent directory must already exist
+README.md:76:sources by default, refuses existing output files, and never reads credentials,
+README.md:79:See the [wizard walkthrough](docs/getting-started.md#create-a-job-interactively).
+README.md:161:  `ferry inventory job.toml` on the receiver. It publishes fingerprints of what it has;
+README.md:167:ferry init [--output PATH] [--stdout]     # offline interactive configuration wizard
+README.md:168:ferry doctor job.toml [--side receiver]   # backend login, proxy settings, routes
+README.md:169:ferry plan job.toml                       # units found under the source root
+README.md:170:ferry send job.toml [--follow]            # until every unit is pushed (then marks done)
+README.md:171:ferry receive job.toml [--once|--follow]  # until the sender is done and the relay is empty
+README.md:172:ferry inventory job.toml [--root PATH]     # receiver: publish fingerprints for seeding
+README.md:173:ferry status job.toml [--side receiver] [--scan-source] [--remote] [--json]
+README.md:185:ferry service /absolute/job.toml --side receiver          # preview a systemd user unit
+README.md:186:ferry service /absolute/job.toml --side receiver --install # install, enable, and start now
+README.md:187:ferry service /absolute/job.toml --side receiver --uninstall
+README.md:188:ferry service /absolute/job.toml --side sender --kind cron --schedule "0 2 * * *"
+README.md:189:ferry service /absolute/job.toml --side sender --kind cron --schedule "0 2 * * *" --install
+README.md:190:ferry service /absolute/job.toml --side sender --kind cron --uninstall
+README.md:211:job = ferry.load_job("job.toml")
+docs/configuration.md:4:Create one with the [interactive wizard](getting-started.md#create-a-job-interactively)
+tests/test_wizard.py:43:    target = target or tmp_path / "job.toml"
+tests/test_wizard.py:71:    job = load_job(tmp_path / "job.toml")
+tests/test_wizard.py:78:    assert sorted(p.name for p in tmp_path.iterdir()) == ["job.toml"]
+tests/test_wizard.py:85:    data = tomllib.loads((tmp_path / "job.toml").read_text())
+tests/test_wizard.py:96:    job = load_job(tmp_path / "job.toml")
+tests/test_wizard.py:110:    job = load_job(tmp_path / "job.toml")
+tests/test_wizard.py:120:    job = load_job(tmp_path / "job.toml")
+tests/test_wizard.py:144:    data = tomllib.loads((tmp_path / "job.toml").read_text())
+tests/test_wizard.py:156:    job = load_job(tmp_path / "job.toml")
+tests/test_wizard.py:189:    code = wizard.run(str(tmp_path / "job.toml"), stdin=io.StringIO("yes\n"), stderr=stderr)
+tests/test_wizard.py:199:    assert wizard.run(str(tmp_path / "job.toml"), stdin=stdin, stderr=stderr) == 2
+tests/test_wizard.py:214:    assert wizard.run(str(tmp_path / "job.toml"), stdin=stdin, stderr=stderr) == 130
+tests/test_wizard.py:221:    path = tmp_path / "job.toml"
+tests/test_wizard.py:241:    code, _, stderr, _ = invoke(tmp_path, answers(tmp_path), target=tmp_path / "missing/job.toml")
+tests/test_wizard.py:279:    path = tmp_path / "job.toml"
+tests/test_wizard.py:325:@pytest.mark.parametrize("output", ["", "job\n.toml", "job\x00.toml", "job\x7f.toml"])
+tests/test_wizard.py:326:def test_output_path_rejects_control_characters(tmp_path, monkeypatch, output):
+tests/test_wizard.py:329:    assert wizard.run(output, stdin=Terminal(), stderr=stderr) == 2
+tests/test_wizard.py:340:def test_cli_stdout_and_default_output(tmp_path, monkeypatch, offline, capsys):
+tests/test_wizard.py:350:            assert out.out == "" and load_job(tmp_path / "job.toml").name == "sample"
+tests/test_wizard.py:359:    assert cli.main(["init", "--output", str(tmp_path / "job.toml")]) == 0
+tests/test_wizard.py:361:    assert load_job(tmp_path / "job.toml").name == "sample"
+tests/test_wizard.py:380:    job = load_job(tmp_path / "job.toml")
+docs/getting-started.md:23:# Or choose a filename in an existing directory:
+docs/getting-started.md:24:ferry init --output /absolute/path/job.toml
+docs/getting-started.md:30:The default output is `job.toml` in the current directory.
+docs/getting-started.md:41:interactive stdin. Save that output at the proposed path before using any printed
+docs/getting-started.md:62:cat > "$demo/job.toml" <<EOF
+docs/getting-started.md:86:ferry doctor "$demo/job.toml"
+docs/getting-started.md:87:ferry doctor "$demo/job.toml" --side receiver
+docs/getting-started.md:88:ferry plan "$demo/job.toml"
+docs/getting-started.md:89:ferry send "$demo/job.toml"
+docs/getting-started.md:90:ferry receive "$demo/job.toml" --once
+docs/getting-started.md:91:ferry status "$demo/job.toml" --side receiver
+docs/getting-started.md:97:one unit. `cmp` exits successfully without output when files match. The source
+ M .specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md
+ M .specstory/statistics.json
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:43:26Z)**_
+
+<think><details><summary>Thought Process</summary>
+**Evaluating symlink paths**
+
+I need to be cautious about creating symlink path XDGferry/jobs. It seems like I’m checking if having an existing symlink to the directory is allowed within the configuration for chezmoi. Also, I'm considering using createparentsTrue and the `.mkdir(exist_ok=True)` function. This seems to be a way to ensure things are set up correctly. I should proceed carefully to ensure everything aligns with my intentions.
+</details></think>
+
+_**Agent (gpt-6-astra 2026-10-30 14:43:27Z)**_
+
+第一個 commit 已建立：`9c2eb77`。下一個變更會保留「一個 job 一份 TOML」，以 job 名稱決定 XDG 檔名，確認儲存後才建立目錄；明確指定 `--output` 時仍可放在專案目錄。既有 config 不搬移，`send`／`receive` 仍接受明確路徑。
+
+
+_**Agent (gpt-6-astra 2026-10-30 14:43:31Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/src/ferry/cli.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:43:41Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/src/ferry/wizard.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:43:51Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/src/ferry/wizard.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:44:01Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/src/ferry/wizard.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:44:08Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/src/ferry/wizard.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:44:49Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/tests/test_wizard.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:45:01Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/tests/test_wizard.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:45:30Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/tests/test_wizard.py has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:45:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./README.md`
+
+````text
+60	```
+61	
+62	Python ≥ 3.11, no runtime dependencies. Backend CLIs are used as installed:
+63	[BaiduPCS-Go](https://github.com/qjfoidnh/BaiduPCS-Go), `rclone`, `gh`.
+64	
+65	## Job file
+66	
+67	Create a config interactively without writing TOML by hand:
+68	
+69	```bash
+70	ferry init                         # preview, then confirm saving job.toml
+71	ferry init --output /path/job.toml  # parent directory must already exist
+72	ferry init --stdout                # interactive prompts on stderr; TOML on stdout only
+73	```
+74	
+75	The wizard supports all five backends and both unit-selection methods. It keeps
+76	sources by default, refuses existing output files, and never reads credentials,
+77	contacts a backend, starts transfers, or installs services. Systemd/cron choices
+78	preview the existing service definitions and print explicit install commands.
+79	See the [wizard walkthrough](docs/getting-started.md#create-a-job-interactively).
+80	
+81	For manual configuration, the advanced example below demonstrates optional settings.
+82	**It deletes sources after upload size checks**; use `delete_source = "never"` for
+83	a pilot, as the wizard does, and review the [deletion policies](docs/operations.md#source-deletion).
+84	
+85	```toml
+86	name = "daily-archive"                        # also the default state dir name
+87	# state_dir = "~/.local/state/ferry/<name>"   # ledgers, logs, lock
+88	
+89	[units]
+90	root = "/data/shared/dataset"
+91	keys_from = "_manifests/*.json"               # key = file stem / dir name
+92	members = ["order/{key}", "trans/{key}", "_manifests/{key}.json"]
+93	# or: glob = "exports/*.parquet"  (each match is a unit); pack = "none" sends files as-is
+94	settle = "6h"                                 # skip units with files newer than this
+````
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:45:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./docs/getting-started.md`
+
+````text
+17	## Create a job interactively
+18	
+19	Run the offline wizard in an interactive terminal:
+20	
+21	```sh
+22	ferry init
+23	# Or choose a filename in an existing directory:
+24	ferry init --output /absolute/path/job.toml
+25	```
+26	
+27	The wizard asks about your source and destination, unit grouping, backend, and
+28	preferred run method. It previews the TOML and next commands before asking to
+29	save. It refuses to overwrite an existing file or symlink; choose a new filename.
+30	The default output is `job.toml` in the current directory.
+31	
+32	Generated jobs retain source data (`delete_source = "never"`), require direct
+33	egress, and default to keeping archives rather than extracting them. Backend
+34	login remains a separate step. The wizard does not contact a backend, inspect
+35	credentials, run doctor, transfer files, or install/start a service. Choosing
+36	systemd or cron previews a definition and prints an explicit installation command
+37	for you to review and run later.
+38	
+39	For a preview without saving, use `ferry init --stdout`: prompts and next steps
+40	go to stderr, and only the finished TOML goes to stdout. It still requires
+41	interactive stdin. Save that output at the proposed path before using any printed
+42	job or service commands. EOF or Ctrl-C cancels; no configuration is written before
+43	confirmation. Shell redirection can create a file independently of the wizard.
+44	
+45	Use absolute paths and distinguish sender-host paths from receiver-host paths.
+46	The other host's directories do not need to exist on the machine running the
+47	wizard. See [Configuration](configuration.md) for advanced limits, read windows,
+48	and source-deletion policies. For a first end-to-end test, use the isolated local
+49	demo below instead of an existing dataset.
+50	
+51	## Try an isolated local relay
+52	
+53	Run these commands in one POSIX shell. They create a fresh temporary directory
+54	containing a non-empty sample file, job state, staging, relay, and destination.
+55	No existing dataset or cloud service is involved.
+56
+````
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:45:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./docs/configuration.md`
+
+```text
+1	# Configuration
+2	
+3	A job is a TOML file passed to the transfer, inspection, and service commands.
+4	Create one with the [interactive wizard](getting-started.md#create-a-job-interactively)
+5	or start with the complete [local quickstart](getting-started.md#try-an-isolated-local-relay).
+6	Use absolute filesystem paths for predictable behavior under supervisors.
+7	
+8	## Wizard scope and defaults
+9	
+10	`ferry init` covers both unit-selection methods, tar/raw packing, a receiver
+11	destination, and the five adapters below. For rsync delivery, it can add a local
+12	receiver override so the destination host reads its own landing directory.
+13	
+14	The wizard writes source retention (`delete_source = "never"`) and direct egress
+15	explicitly; extraction defaults to off. It deliberately leaves advanced tuning
+16	such as capacity limits, read windows, settling, and destructive policies to this
+17	reference. Review the generated job before changing one of those defaults.
+18	
+19	Only backend identifiers and non-secret options belong in the job. Configure
+20	BaiduPCS-Go, rclone, gh, or SSH authentication separately on each execution host;
+21	never paste tokens, passwords, or session-file contents into the wizard. Offline
+22	wizard validation checks configuration structure, not backend availability or
+23	whether the selected source pattern matches the intended data.
+24	
+25	Source and staging paths belong to the sender; the destination belongs to the
+26	receiver. Keep state persistent on each host and enter paths appropriate to that
+27	host, not paths from the laptop used to create the file. A receiver path need
+28	not exist locally during setup. Review both host copies of a job before running
+29	[doctor and plan](operations.md#inspect-before-transferring).
+30	
+31	## Job identity and units
+32	
+33	`name` identifies the job; use letters, digits, dots, underscores, and hyphens,
+34	starting with a letter or digit. `state_dir` defaults to
+35	`~/.local/state/ferry/<name>`. Keep it persistent and separate from source data.
+36	Use a dedicated remote prefix for each job, not a shared production directory.
+37	
+38	`[units]` requires `root` and exactly one selection method:
+39	
+40	- `glob = "exports/*.parquet"`: each match is a unit, keyed from its basename.
+41	  Avoid matches whose names collapse to the same key.
+42	- `keys_from = "_manifests/*.json"` plus
+43	  `members = ["data/{key}", "_manifests/{key}.json"]`: derive each key from a file
+44	  stem or directory name, then collect existing paths from the templates.
+45	  Missing member paths are omitted; inspect `ferry plan` before sending.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run focused XDG tests and confirm branch history
+
+`uv run ruff check src tests; uv run pytest tests/test_wizard.py -q; git log -3 --oneline; git branch --show-current`
+
+```text
+All checks passed!
+........................................................................ [ 87%]
+..........                                                               [100%]
+82 passed in 0.13s
+dce9eaf chore: backup plan and chat history
+9c2eb77 feat: add offline config wizard and background-operation guides
+f32b2ca ci(docs): deploy documentation to GitHub Pages
+feat/config-wizard
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:32Z)**_
+
+XDG 路徑邏輯與 82 個 wizard 測試已通過，包含多 job、同名／symlink 拒絕覆寫、取消不建目錄，以及相對路徑的 `XDG_CONFIG_HOME` 依規範退回 `~/.config`。我正在更新文件與 TODO，之後會跑完整測試和文件 build。
+
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:32Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/README.md has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:32Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/docs/getting-started.md has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:35Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/docs/configuration.md has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:52Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/README.md has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:52Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/docs/getting-started.md has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:46:53Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/TODO.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:47:01Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/zhouhanru/Documents/David/Program/ferry/TODO.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:47:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run full checks and build updated documentation
+
+`just check && just docs-build`
+
+```text
+uv run ruff check src tests
+All checks passed!
+uv run pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.13.3, pytest-8.4.2, pluggy-1.7.0
+rootdir: /Users/zhouhanru/Documents/David/Program/ferry
+configfile: pyproject.toml
+testpaths: tests
+collected 121 items
+
+tests/test_egress.py ...                                                 [  2%]
+tests/test_incremental.py .....                                          [  6%]
+tests/test_parsing.py ............                                       [ 16%]
+tests/test_roundtrip.py ...........                                      [ 25%]
+tests/test_service.py ........                                           [ 32%]
+tests/test_wizard.py ................................................... [ 74%]
+...............................                                          [100%]
+
+============================= 121 passed in 2.06s ==============================
+uv run --locked --group docs zensical build --strict
+Build started
+No issues found
+Build finished in 0.23s
+uv run --locked --group docs python scripts/check-docs-site.py
+{"status": "ok", "pages": 5, "llm_pages": 5, "deployed": false}
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:47:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify Python 3.11 compatibility offline
+
+`uv run --offline --isolated --python 3.11 pytest -q`
+
+```text
+Installed 7 packages in 35ms
+........................................................................ [ 59%]
+.................................................                        [100%]
+121 passed in 2.15s
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:47:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check final diff and refresh PR status
+
+`git diff --check; git diff --stat; gh pr view 3 --repo daviddwlee84/ferry --json number,state,mergedAt,mergeable,mergeStateStatus,statusCheckRollup,url`
+
+```text
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13887: trailing whitespace.
++143	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13888: trailing whitespace.
++144	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13893: trailing whitespace.
++149	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13894: trailing whitespace.
++150	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13966: trailing whitespace.
++222	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13967: trailing whitespace.
++223	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13977: trailing whitespace.
++233	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13978: trailing whitespace.
++234	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13982: trailing whitespace.
++238	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13992: trailing whitespace.
++248	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13995: trailing whitespace.
++251	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:13996: trailing whitespace.
++252	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14042: trailing whitespace.
++298	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14043: trailing whitespace.
++299	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14059: trailing whitespace.
++315	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14060: trailing whitespace.
++316	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14121: trailing whitespace.
++18	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14122: trailing whitespace.
++19	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14131: trailing whitespace.
++28	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14137: trailing whitespace.
++34	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14169: trailing whitespace.
++66	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14170: trailing whitespace.
++67	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14173: trailing whitespace.
++70	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14174: trailing whitespace.
++71	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14210: trailing whitespace.
++262	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14211: trailing whitespace.
++263	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14224: trailing whitespace.
++276	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14225: trailing whitespace.
++277	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14229: trailing whitespace.
++281	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14233: trailing whitespace.
++285	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14238: trailing whitespace.
++290	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14239: trailing whitespace.
++291	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14243: trailing whitespace.
++295	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14247: trailing whitespace.
++299	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14250: trailing whitespace.
++302	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14253: trailing whitespace.
++305	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14256: trailing whitespace.
++308	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14261: trailing whitespace.
++313	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14265: trailing whitespace.
++317	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14271: trailing whitespace.
++323	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14272: trailing whitespace.
++324	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14280: trailing whitespace.
++332	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14281: trailing whitespace.
++333	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14286: trailing whitespace.
++338	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14287: trailing whitespace.
++339	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14299: trailing whitespace.
++351	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14300: trailing whitespace.
++352	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14304: trailing whitespace.
++356	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14310: trailing whitespace.
++362	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14311: trailing whitespace.
++363	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14318: trailing whitespace.
++370	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14319: trailing whitespace.
++371	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14353: trailing whitespace.
++2	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14355: trailing whitespace.
++4	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14362: trailing whitespace.
++11	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14364: trailing whitespace.
++13	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14366: trailing whitespace.
++15	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14542: trailing whitespace.
++61	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14545: trailing whitespace.
++64	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14547: trailing whitespace.
++66	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14549: trailing whitespace.
++68	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14555: trailing whitespace.
++74	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14561: trailing whitespace.
++80	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14565: trailing whitespace.
++84	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14569: trailing whitespace.
++88	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14587: trailing whitespace.
++18	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14589: trailing whitespace.
++20	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14595: trailing whitespace.
++26	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14600: trailing whitespace.
++31	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14607: trailing whitespace.
++38	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14613: trailing whitespace.
++44	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14619: trailing whitespace.
++50	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14621: trailing whitespace.
++52	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14637: trailing whitespace.
++2	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14642: trailing whitespace.
++7	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14644: trailing whitespace.
++9	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14648: trailing whitespace.
++13	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14653: trailing whitespace.
++18	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14659: trailing whitespace.
++24	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14665: trailing whitespace.
++30	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14667: trailing whitespace.
++32	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14672: trailing whitespace.
++37	
+.specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md:14674: trailing whitespace.
++39	
+ ...2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md | 921 +++++++++++++++++++++
+ .specstory/statistics.json                         |  10 +-
+ README.md                                          |  12 +-
+ TODO.md                                            |   3 +-
+ docs/configuration.md                              |  28 +
+ docs/getting-started.md                            |  21 +-
+ src/ferry/cli.py                                   |   4 +-
+ src/ferry/wizard.py                                |  55 +-
+ tests/test_wizard.py                               | 130 ++-
+ 9 files changed, 1155 insertions(+), 29 deletions(-)
+{"mergeStateStatus":"CLEAN","mergeable":"MERGEABLE","mergedAt":null,"number":3,"state":"OPEN","statusCheckRollup":[],"url":"https://github.com/daviddwlee84/ferry/pull/3"}
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:47:49Z)**_
+
+完整驗證已通過：Python 3.11、3.13 各 121 個測試，文件 strict build 與匯出檢查也成功。PR #3 再查仍是未合併、可合併、沒有 CI checks。全 repo 的 whitespace 檢查只報出 `.specstory` 自動紀錄的尾端空白；我不會改那些紀錄，會另確認這次修改的檔案。
+
+
+_**Agent (gpt-6-astra 2026-10-30 14:47:52Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Review XDG changes and verify final CLI help
+
+`git diff --check -- README.md TODO.md docs/configuration.md docs/getting-started.md src/ferry/cli.py src/ferry/wizard.py tests/test_wizard.py && git diff -- src/ferry/cli.py src/ferry/wizard.py && uv run ferry init --help && git status --short && git log -3 --format='%h %s'`
+
+```text
+diff --git a/src/ferry/cli.py b/src/ferry/cli.py
+index e43ef28..d395751 100644
+--- a/src/ferry/cli.py
++++ b/src/ferry/cli.py
+@@ -22,7 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
+     p.add_argument("--version", action="version", version=f"ferry {__version__}")
+     sub = p.add_subparsers(dest="command", required=True)
+     c = sub.add_parser("init", help="interactively create a source-preserving job (offline)")
+-    c.add_argument("--output", default="job.toml", help="new job path (default: job.toml)")
++    c.add_argument("--output", help="explicit new job path; default: "
++                   "$XDG_CONFIG_HOME/ferry/jobs/<name>.toml "
++                   "(falls back to ~/.config/ferry/jobs/<name>.toml)")
+     c.add_argument("--stdout", action="store_true", help="print TOML instead of writing a file; "
+                    "still requires interactive stdin")
+ 
+diff --git a/src/ferry/wizard.py b/src/ferry/wizard.py
+index 6c44b2e..60a8187 100644
+--- a/src/ferry/wizard.py
++++ b/src/ferry/wizard.py
+@@ -148,12 +148,7 @@ def _schedule(value: str) -> str:
+     return value
+ 
+ 
+-def collect(p: Prompts) -> dict:
+-    p.say("Create a source-preserving job. This does not contact backends or start transfers.\n"
+-          "Enter paths without shell quotes. Source paths belong to the sender; destination\n"
+-          "paths belong to the receiver. ~/ is expanded on the host using each path.\n"
+-          "Use separate, persistent state/staging and dedicated relay/destination directories.")
+-    name = p.ask("Job name", "my-job", _name)
++def collect(p: Prompts, name: str) -> dict:
+     root = p.ask("Source root (sender host)", validate=_host_path)
+     state = p.ask("State directory (local to each host)", f"~/.local/state/ferry/{name}",
+                   _host_path)
+@@ -314,7 +309,28 @@ def _write_new(path: Path, text: str) -> None:
+         raise
+ 
+ 
+-def run(output: str = "job.toml", *, to_stdout: bool = False,
++def _output_path(value: str) -> Path:
++    if not value or any(ord(c) < 32 or ord(c) == 127 for c in value):
++        raise ValueError("output must be a non-empty path without control characters")
++    return Path(value).expanduser().absolute()
++
++
++def default_output(name: str) -> Path:
++    """One job per file; relative XDG_CONFIG_HOME values are invalid per XDG."""
++    _name(name)
++    base = os.environ.get("XDG_CONFIG_HOME", "")
++    root = Path(base) if base and Path(base).is_absolute() else Path.home() / ".config"
++    return _output_path(str(root / "ferry" / "jobs" / f"{name}.toml"))
++
++
++def _check_output(path: Path, *, managed: bool) -> None:
++    if path.exists() or path.is_symlink():
++        raise ValueError(f"refusing to overwrite {path}; choose a new job name or --output path")
++    if not managed and not path.parent.is_dir():
++        raise ValueError(f"output parent directory does not exist: {path.parent}")
++
++
++def run(output: str | None = None, *, to_stdout: bool = False,
+         stdin: TextIO | None = None, stdout: TextIO | None = None,
+         stderr: TextIO | None = None) -> int:
+     stdin = sys.stdin if stdin is None else stdin
+@@ -326,15 +342,20 @@ def run(output: str = "job.toml", *, to_stdout: bool = False,
+               f"at {DOCS}getting-started/. --stdout still requires interactive answers.")
+         return 2
+     try:
+-        if not output or any(ord(c) < 32 or ord(c) == 127 for c in output):
+-            raise ValueError("output must be a non-empty path without control characters")
+-        path = Path(output).expanduser().absolute()
+-        if not to_stdout:
+-            if path.exists() or path.is_symlink():
+-                raise ValueError(f"refusing to overwrite {path}; choose a new --output path")
+-            if not path.parent.is_dir():
+-                raise ValueError(f"output parent directory does not exist: {path.parent}")
+-        data = collect(p)
++        path = _output_path(output) if output is not None else None
++        if path is not None and not to_stdout:
++            _check_output(path, managed=False)
++        p.say("Create a source-preserving job. This does not contact backends or start transfers.\n"
++              "Enter paths without shell quotes. Source paths belong to the sender; destination\n"
++              "paths belong to the receiver. ~/ is expanded on the host using each path.\n"
++              "Use separate, persistent state/staging and dedicated relay/destination directories.")
++        name = p.ask("Job name (unique for each sync job)", "my-job", _name)
++        if path is None:
++            path = default_output(name)
++            if not to_stdout:
++                _check_output(path, managed=True)
++        p.say(f"Job file: {path}")
++        data = collect(p, name)
+         text = render(data)
+         job = job_from_dict(tomllib.loads(text), path)
+         p.say("\nConfiguration preview:\n" + text)
+@@ -348,6 +369,8 @@ def run(output: str = "job.toml", *, to_stdout: bool = False,
+         if to_stdout:
+             stdout.write(text)
+         else:
++            if output is None:
++                path.parent.mkdir(parents=True, exist_ok=True)
+             _write_new(path, text)
+             p.say(f"Saved {path}. No transfer or service was started.")
+         return 0
+usage: ferry init [-h] [--output OUTPUT] [--stdout]
+
+options:
+  -h, --help       show this help message and exit
+  --output OUTPUT  explicit new job path; default:
+                   $XDG_CONFIG_HOME/ferry/jobs/<name>.toml (falls back to
+                   ~/.config/ferry/jobs/<name>.toml)
+  --stdout         print TOML instead of writing a file; still requires
+                   interactive stdin
+ M .specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md
+ M .specstory/statistics.json
+ M README.md
+ M TODO.md
+ M docs/configuration.md
+ M docs/getting-started.md
+ M src/ferry/cli.py
+ M src/ferry/wizard.py
+ M tests/test_wizard.py
+dce9eaf chore: backup plan and chat history
+9c2eb77 feat: add offline config wizard and background-operation guides
+f32b2ca ci(docs): deploy documentation to GitHub Pages
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:48:16Z)**_
+
+### 已提交
+- Commit：`9c2eb77` — wizard、服務預覽與 pueue 文件
+- 分支：`feat/config-wizard`
+- 尚未 push。
+
+### XDG 下一個變更已完成
+這部分**尚未另行 commit**：
+
+```sh
+uv run ferry init
+# 預設：$XDG_CONFIG_HOME/ferry/jobs/<name>.toml
+# fallback：~/.config/ferry/jobs/<name>.toml
+
+uv run ferry init --output ./photos.toml
+# 明確選擇專案內設定
+```
+
+每個 job 獨立一份 TOML；確認儲存後才建立目錄，不覆寫、不搬移舊 config。文件與 TODO 已更新。
+
+驗證：Python 3.11、3.13 各 **121 tests passed**，文件 strict build／匯出檢查通過。
+
+### PR #3
+[Per-side upload/download bandwidth caps](https://github.com/daviddwlee84/ferry/pull/3) 目前：
+- **尚未合併**：`OPEN`
+- GitHub 顯示 `MERGEABLE`／`CLEAN`
+- 沒有回報 CI checks
+
+目前只查了狀態，**未審查程式碼或執行合併**；可合併狀態不代表已驗證變更正確。
+
+---
+
+_**User (2026-10-30 14:57:51Z)**_
+
+可以commit
+
+---
+
+_**Agent (gpt-6-astra 2026-10-30 14:57:59Z)**_
+
+我會只提交這次的 XDG 預設路徑、測試與文件變更，不納入 `.specstory` 自動紀錄，也不 push。
+
+
+_**Agent (gpt-6-astra 2026-10-30 14:58:01Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify the XDG changes before committing
+
+`git status --short; git branch --show-current; git diff --stat -- README.md TODO.md docs/configuration.md docs/getting-started.md src/ferry/cli.py src/ferry/wizard.py tests/test_wizard.py; git diff --check -- README.md TODO.md docs/configuration.md docs/getting-started.md src/ferry/cli.py src/ferry/wizard.py tests/test_wizard.py`
+
+```text
+ M .specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md
+ M .specstory/statistics.json
+ M README.md
+ M TODO.md
+ M docs/configuration.md
+ M docs/getting-started.md
+ M src/ferry/cli.py
+ M src/ferry/wizard.py
+ M tests/test_wizard.py
+feat/config-wizard
+ README.md               |  12 ++++-
+ TODO.md                 |   3 +-
+ docs/configuration.md   |  28 +++++++++++
+ docs/getting-started.md |  21 ++++++--
+ src/ferry/cli.py        |   4 +-
+ src/ferry/wizard.py     |  55 ++++++++++++++------
+ tests/test_wizard.py    | 130 +++++++++++++++++++++++++++++++++++++++++++++++-
+ 7 files changed, 229 insertions(+), 24 deletions(-)
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:58:07Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Commit the per-job XDG configuration changes
+
+`git add README.md TODO.md docs/configuration.md docs/getting-started.md src/ferry/cli.py src/ferry/wizard.py tests/test_wizard.py && git diff --cached --check && git commit -m "feat: default wizard configs to per-job XDG paths" -m "Honor XDG_CONFIG_HOME with a ~/.config fallback, retain explicit project-local output paths, and create managed directories only after confirmation. Cover multi-job isolation and path edge cases in tests and documentation." -m "Co-Authored-By: Claude Code <noreply@anthropic.com>" && git status --short`
+
+```text
+[feat/config-wizard 0393837] feat: default wizard configs to per-job XDG paths
+ 7 files changed, 229 insertions(+), 24 deletions(-)
+ M .specstory/history/2026-10-30_13-53-31Z-1-ferry-wizard-scaffold.md
+ M .specstory/statistics.json
+```
+</details></tool-use>
+
+_**Agent (gpt-6-astra 2026-10-30 14:58:18Z)**_
+
+已提交：`0393837` — `feat: default wizard configs to per-job XDG paths`
+
+- 分支：`feat/config-wizard`
+- 未納入 `.specstory` 紀錄
+- 尚未 push

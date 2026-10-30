@@ -148,12 +148,7 @@ def _schedule(value: str) -> str:
     return value
 
 
-def collect(p: Prompts) -> dict:
-    p.say("Create a source-preserving job. This does not contact backends or start transfers.\n"
-          "Enter paths without shell quotes. Source paths belong to the sender; destination\n"
-          "paths belong to the receiver. ~/ is expanded on the host using each path.\n"
-          "Use separate, persistent state/staging and dedicated relay/destination directories.")
-    name = p.ask("Job name", "my-job", _name)
+def collect(p: Prompts, name: str) -> dict:
     root = p.ask("Source root (sender host)", validate=_host_path)
     state = p.ask("State directory (local to each host)", f"~/.local/state/ferry/{name}",
                   _host_path)
@@ -314,7 +309,28 @@ def _write_new(path: Path, text: str) -> None:
         raise
 
 
-def run(output: str = "job.toml", *, to_stdout: bool = False,
+def _output_path(value: str) -> Path:
+    if not value or any(ord(c) < 32 or ord(c) == 127 for c in value):
+        raise ValueError("output must be a non-empty path without control characters")
+    return Path(value).expanduser().absolute()
+
+
+def default_output(name: str) -> Path:
+    """One job per file; relative XDG_CONFIG_HOME values are invalid per XDG."""
+    _name(name)
+    base = os.environ.get("XDG_CONFIG_HOME", "")
+    root = Path(base) if base and Path(base).is_absolute() else Path.home() / ".config"
+    return _output_path(str(root / "ferry" / "jobs" / f"{name}.toml"))
+
+
+def _check_output(path: Path, *, managed: bool) -> None:
+    if path.exists() or path.is_symlink():
+        raise ValueError(f"refusing to overwrite {path}; choose a new job name or --output path")
+    if not managed and not path.parent.is_dir():
+        raise ValueError(f"output parent directory does not exist: {path.parent}")
+
+
+def run(output: str | None = None, *, to_stdout: bool = False,
         stdin: TextIO | None = None, stdout: TextIO | None = None,
         stderr: TextIO | None = None) -> int:
     stdin = sys.stdin if stdin is None else stdin
@@ -326,15 +342,20 @@ def run(output: str = "job.toml", *, to_stdout: bool = False,
               f"at {DOCS}getting-started/. --stdout still requires interactive answers.")
         return 2
     try:
-        if not output or any(ord(c) < 32 or ord(c) == 127 for c in output):
-            raise ValueError("output must be a non-empty path without control characters")
-        path = Path(output).expanduser().absolute()
-        if not to_stdout:
-            if path.exists() or path.is_symlink():
-                raise ValueError(f"refusing to overwrite {path}; choose a new --output path")
-            if not path.parent.is_dir():
-                raise ValueError(f"output parent directory does not exist: {path.parent}")
-        data = collect(p)
+        path = _output_path(output) if output is not None else None
+        if path is not None and not to_stdout:
+            _check_output(path, managed=False)
+        p.say("Create a source-preserving job. This does not contact backends or start transfers.\n"
+              "Enter paths without shell quotes. Source paths belong to the sender; destination\n"
+              "paths belong to the receiver. ~/ is expanded on the host using each path.\n"
+              "Use separate, persistent state/staging and dedicated relay/destination directories.")
+        name = p.ask("Job name (unique for each sync job)", "my-job", _name)
+        if path is None:
+            path = default_output(name)
+            if not to_stdout:
+                _check_output(path, managed=True)
+        p.say(f"Job file: {path}")
+        data = collect(p, name)
         text = render(data)
         job = job_from_dict(tomllib.loads(text), path)
         p.say("\nConfiguration preview:\n" + text)
@@ -348,6 +369,8 @@ def run(output: str = "job.toml", *, to_stdout: bool = False,
         if to_stdout:
             stdout.write(text)
         else:
+            if output is None:
+                path.parent.mkdir(parents=True, exist_ok=True)
             _write_new(path, text)
             p.say(f"Saved {path}. No transfer or service was started.")
         return 0

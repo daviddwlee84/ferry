@@ -67,10 +67,18 @@ Python ≥ 3.11, no runtime dependencies. Backend CLIs are used as installed:
 Create a config interactively without writing TOML by hand:
 
 ```bash
-ferry init                         # preview, then confirm saving job.toml
-ferry init --output /path/job.toml  # parent directory must already exist
+ferry init                         # preview, then save an XDG config named after the job
+ferry init --output ./photos.toml   # opt into a project-local file
 ferry init --stdout                # interactive prompts on stderr; TOML on stdout only
 ```
+
+Each sync job has its own TOML. By default the wizard writes
+`$XDG_CONFIG_HOME/ferry/jobs/<name>.toml`, using `~/.config/ferry/jobs/<name>.toml`
+when `XDG_CONFIG_HOME` is unset, empty, or relative. The managed directory is
+created only after you confirm saving. Explicit `--output` paths require an
+existing parent directory. Use distinct job names, state/staging directories,
+and relay prefixes for independent syncs; existing configs are not migrated.
+Commands still take an explicit job path, as printed by the wizard.
 
 The wizard supports all five backends and both unit-selection methods. It keeps
 sources by default, refuses existing output files, and never reads credentials,

@@ -62,7 +62,8 @@ def adapter_for(job: Job, side: str, host: HostBudget | None = None) -> Adapter:
         "upload": [job.remote.upload_schedule, host.schedule("upload")],
         "download": [job.remote.download_schedule, host.schedule("download")],
     }
-    if host.max_transfers or any(s for pair in schedules.values() for s in pair):
+    if (host.max_transfers or host.upload_daily or host.download_daily
+            or any(s for pair in schedules.values() for s in pair)):
         stop = job.remote.stop_at_window_end and host.stop_at_window_end
         _gate(adapter, host, schedules, stop_at_window_end=stop)
     return adapter
@@ -102,15 +103,30 @@ def _gate(adapter: Adapter, host: HostBudget, schedules: dict, *,
         close = seconds_until_close(schedules[direction]) if stop_at_window_end else None
         return transfer_deadline(close)
 
+    def admit(direction: str) -> None:
+        """Wait for the transfer window and for room in today's quota."""
+        announced = False
+        while True:
+            wait_for_window(direction, schedules[direction])
+            wait = host.quota_wait(direction)
+            if wait == 0:
+                return
+            if not announced:
+                log.info("daily %s quota used up; resuming in %.1f h", direction, wait / 3600)
+                announced = True
+            time.sleep(min(wait, 300))
+
     def gated_put(local: Path, remote: str) -> None:
-        wait_for_window("upload", schedules["upload"])
+        admit("upload")
         with host.slot("upload", on_wait=waiting), limit("upload"):
             put(local, remote)
+        host.record("upload", local.stat().st_size if local.exists() else 0)
 
     def gated_get(remote: str, local: Path) -> None:
-        wait_for_window("download", schedules["download"])
+        admit("download")
         with host.slot("download", on_wait=waiting), limit("download"):
             get(remote, local)
+        host.record("download", local.stat().st_size if local.exists() else 0)
 
     adapter.put, adapter.get = gated_put, gated_get
 

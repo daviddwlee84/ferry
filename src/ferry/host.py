@@ -15,13 +15,16 @@ lower. Traffic from programs other than ferry is not covered (use tc or the rout
 """
 from __future__ import annotations
 
+import datetime as dt
 import fcntl
+import json
 import os
 import time
 import tomllib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from .job import parse_schedule
 from .sizes import parse_size
@@ -55,6 +58,52 @@ class HostBudget:
     upload_schedule: Schedule = Schedule()
     download_schedule: Schedule = Schedule()
     stop_at_window_end: bool = True
+    #: Bytes per calendar day per direction (ISP fair-use quotas); None = unlimited.
+    upload_daily: int | None = None
+    download_daily: int | None = None
+    quota_timezone: str | None = None  # day boundary; default: the host's local time
+
+    def daily(self, direction: str) -> int | None:
+        return self.upload_daily if direction == "upload" else self.download_daily
+
+    def _today(self, now: dt.datetime | None = None) -> dt.datetime:
+        tz = ZoneInfo(self.quota_timezone) if self.quota_timezone else None
+        now = now or dt.datetime.now(dt.timezone.utc)
+        return now.astimezone(tz) if tz else now.astimezone()
+
+    @contextmanager
+    def _usage(self):
+        path = self.slot_dir.parent / "usage.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with (path.parent / "usage.lock").open("a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            data = json.loads(path.read_text()) if path.exists() else {}
+            yield data
+            keep = sorted(data)[-14:]  # two weeks of history
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps({k: data[k] for k in keep}, indent=1, sort_keys=True))
+            tmp.replace(path)
+
+    def used_today(self, direction: str, now: dt.datetime | None = None) -> int:
+        day = self._today(now).date().isoformat()
+        with self._usage() as data:
+            return int(data.get(day, {}).get(direction, 0))
+
+    def record(self, direction: str, nbytes: int, now: dt.datetime | None = None) -> None:
+        day = self._today(now).date().isoformat()
+        with self._usage() as data:
+            bucket = data.setdefault(day, {})
+            bucket[direction] = int(bucket.get(direction, 0)) + int(nbytes)
+
+    def quota_wait(self, direction: str, now: dt.datetime | None = None) -> float:
+        """0 while today's quota has room; otherwise seconds until the next day starts."""
+        quota = self.daily(direction)
+        if not quota or self.used_today(direction, now) < quota:
+            return 0.0
+        local = self._today(now)
+        tomorrow = dt.datetime.combine(local.date() + dt.timedelta(days=1), dt.time(),
+                                       tzinfo=local.tzinfo)
+        return max(1.0, (tomorrow - local).total_seconds())
 
     def schedule(self, direction: str) -> Schedule:
         return self.upload_schedule if direction == "upload" else self.download_schedule
@@ -76,7 +125,8 @@ class HostBudget:
     @property
     def active(self) -> bool:
         return bool(self.upload_rate or self.download_rate or self.max_transfers
-                    or self.upload_schedule or self.download_schedule)
+                    or self.upload_schedule or self.download_schedule
+                    or self.upload_daily or self.download_daily)
 
     @contextmanager
     def slot(self, direction: str, *, poll: float = 1.0, on_wait=None):
@@ -119,7 +169,8 @@ def load_host_budget(path: Path | None = None) -> HostBudget:
     with path.open("rb") as f:
         data = tomllib.load(f)
     known = {"upload_rate", "download_rate", "max_transfers", "slot_dir", "upload_allowed",
-             "upload_blocked", "download_allowed", "download_blocked", "stop_at_window_end"}
+             "upload_blocked", "download_allowed", "download_blocked", "stop_at_window_end",
+             "upload_daily", "download_daily", "quota_timezone"}
     unknown = set(data) - known
     if unknown:
         raise ValueError(f"{path}: unknown host settings {sorted(unknown)}")
@@ -133,4 +184,6 @@ def load_host_budget(path: Path | None = None) -> HostBudget:
         slot_dir = Path(os.path.expanduser(data["slot_dir"]))
     return HostBudget(up, down, max_transfers, slot_dir, path,
                       parse_schedule(data, "upload"), parse_schedule(data, "download"),
-                      bool(data.get("stop_at_window_end", True)))
+                      bool(data.get("stop_at_window_end", True)),
+                      parse_size(data.get("upload_daily")), parse_size(data.get("download_daily")),
+                      data.get("quota_timezone"))

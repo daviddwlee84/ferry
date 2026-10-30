@@ -56,7 +56,9 @@ def side_status(job: Job, side: str, *, scan_source: bool = False,
         extra["seeded"] = len({r["key"] for r in records if r["event"] == "seeded"})
         extra["resent_revisions"] = sum(1 for r in done if r.get("revision", 1) > 1)
         if scan_source:
-            remaining = [u.key for u in enumerate_units(job.units) if u.key not in latest]
+            seeded = {r["key"] for r in records if r["event"] == "seeded"}
+            remaining = [u.key for u in enumerate_units(job.units)
+                         if u.key not in latest and u.key not in seeded]
             extra["remaining_units"] = len(remaining)
             if avg and rate:
                 extra["eta_hours"] = round(len(remaining) * avg / 1e6 / rate / 3600, 1)

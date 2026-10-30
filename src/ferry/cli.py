@@ -95,6 +95,11 @@ def main(argv: list[str] | None = None) -> int:
                 lines.append(f"  host budget ({host.source}): up {human(host.upload_rate)}/s, "
                              f"down {human(host.download_rate)}/s, "
                              f"{host.max_transfers or 'unlimited'} transfer(s) per direction")
+            for direction in ("upload", "download"):
+                quota = host.daily(direction)
+                if quota:
+                    lines.append(f"  {direction} today: {human(host.used_today(direction))} "
+                                 f"of {human(quota)} daily quota")
             from .windows import wait_seconds
             for direction in ("upload", "download"):
                 pair = [getattr(job.remote, f"{direction}_schedule"), host.schedule(direction)]

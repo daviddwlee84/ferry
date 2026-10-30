@@ -258,6 +258,22 @@ extra transfers wait for a slot. A job's own cap still applies when it is lower,
 `ferry doctor` shows the effective rates. Programs other than ferry are not covered: to
 cap a whole machine regardless of the tool, shape traffic at the OS (`tc`) or the router.
 
+## Daily quotas
+
+Some ISPs throttle lines whose daily traffic exceeds a fair-use volume. Cap what all ferry
+jobs on a host move per day in `host.toml`:
+
+```toml
+upload_daily = "15GB"
+download_daily = "250GB"
+quota_timezone = "Asia/Shanghai"   # day boundary; default is the host's local time
+```
+
+Usage is recorded per direction in `$XDG_STATE_HOME/ferry/host-slots/../usage.json`
+(shared by every job, file-locked). A transfer starts only while today's usage is below
+the quota, so a day can overshoot by at most one part; after that ferry waits until the
+next day. `ferry doctor` shows today's usage. Transfers by other programs are not counted.
+
 ## Transfer windows
 
 Uploads and downloads can be restricted to certain hours, e.g. a shared home uplink at

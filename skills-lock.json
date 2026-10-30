@@ -21,7 +21,7 @@
     },
     "zensical-site-bootstrap": {
       "source": "daviddwlee84/agent-skills",
-      "ref": "7c52d9bc4bc8d613d3b6f081cdd712e4cbee926c",
+      "ref": "61723bd2eb4a0ea961e5ddd3ec3eccd7194ce5b7",
       "sourceType": "github",
       "skillPath": "skills/local/zensical-site-bootstrap/SKILL.md",
       "computedHash": "3ececabda3837bec6935bb20c64a838486a19adb4b3eb9bf87ae2b113f47f804"

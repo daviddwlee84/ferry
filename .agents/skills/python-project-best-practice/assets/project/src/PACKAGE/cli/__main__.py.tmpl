@@ -1,0 +1,8 @@
+"""Allow ``python -m PACKAGE_NAME_PLACEHOLDER.cli`` as well as the console script."""
+
+import sys
+
+from PACKAGE_NAME_PLACEHOLDER.cli import main
+
+if __name__ == "__main__":
+    sys.exit(main())

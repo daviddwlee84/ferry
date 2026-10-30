@@ -1,0 +1,103 @@
+[project]
+name = "PROJECT_SLUG_PLACEHOLDER"
+version = "0.1.0"
+description = "PROJECT_DESCRIPTION_PLACEHOLDER"
+readme = "README.md"
+requires-python = ">=PYTHON_FLOOR_PLACEHOLDER"
+license = "MIT"
+authors = [{ name = "AUTHOR_PLACEHOLDER" }]
+classifiers = ["Programming Language :: Python :: 3"]
+
+# Keep runtime dependency floors at the lowest version whose API you actually
+# use (do not leave `uv add`'s `>=<released-today>` default or add `<` upper
+# caps). Exact reproducibility for dev and CI lives in `uv.lock`.
+dependencies = [
+# __IF:cli,lib,api,ml,rust__
+    "tyro>=0.8",
+    "loguru>=0.7",
+    "pydantic-settings>=2.0",
+# __END__
+# __IF:api__
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.20",
+# __END__
+]
+
+# __IF:cli,lib,api,ml,rust__
+# Without this table there is no command to run, and `uv tool install` gives
+# the user nothing. Console scripts are the point of packaging a tool.
+[project.scripts]
+PROJECT_SLUG_PLACEHOLDER = "PACKAGE_NAME_PLACEHOLDER.cli:main"
+# __END__
+
+[project.urls]
+Homepage = "https://github.com/OWNER_PLACEHOLDER/PROJECT_SLUG_PLACEHOLDER"
+Issues = "https://github.com/OWNER_PLACEHOLDER/PROJECT_SLUG_PLACEHOLDER/issues"
+
+# PEP 735 dependency groups, NOT [project.optional-dependencies]: an extra is
+# published to PyPI and installable by your users; a group is local-only dev
+# tooling. `uv sync` installs the `dev` group by default.
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
+    # ty is pre-1.0 (0.0.x): diagnostics can change between any two patch
+    # releases. Pin exactly (ty==0.0.N) once you pick one, or replace this
+    # line with "mypy>=1.14" and point `just types` at it.
+    "ty>=0.0.1",
+# __IF:api__
+    # starlette.testclient needs httpx2; plain httpx warns as deprecated.
+    "httpx2>=2.12",
+# __END__
+# __IF:ml__
+    "marimo>=0.10",
+# __END__
+# __IF:rust__
+    "maturin>=1.7,<2.0",
+# __END__
+]
+
+# __IF:minimal,cli,lib,api,ml__
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/PACKAGE_NAME_PLACEHOLDER"]
+# __END__
+# __IF:rust__
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "src"
+module-name = "PACKAGE_NAME_PLACEHOLDER._rust"
+manifest-path = "rust/Cargo.toml"
+features = ["pyo3/extension-module"]
+# __END__
+
+[tool.ruff]
+line-length = 100
+target-version = "RUFF_TARGET_PLACEHOLDER"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# marimo notebooks are real .py files: cells are functions with intentionally
+# unused names and imports that cannot be hoisted to the top of the file.
+"notebooks/*" = ["E402", "F401", "B018"]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers --strict-config"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError"]

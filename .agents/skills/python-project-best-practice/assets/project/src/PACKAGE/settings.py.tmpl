@@ -1,0 +1,23 @@
+"""Resolved configuration: defaults < .env file < environment variables.
+
+Every field here must be printable by ``PROJECT_SLUG_PLACEHOLDER info``, so a
+user can diff what the program actually sees against what they edited.
+"""
+
+from __future__ import annotations
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Application settings. All keys are prefixed ``ENV_PREFIX_PLACEHOLDER``."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="ENV_PREFIX_PLACEHOLDER",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    log_level: str = "INFO"
+    log_json: bool = False

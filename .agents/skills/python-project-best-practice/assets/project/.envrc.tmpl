@@ -1,0 +1,11 @@
+# direnv: activate .venv on cd, then load .env if present.
+# Run `direnv allow` once after creating or editing this file.
+#
+# direnv cannot modify PS1, so you will NOT see a "(.venv)" prompt even though
+# the environment is active. Check with `which python`, not the prompt.
+# https://github.com/direnv/direnv/issues/1264
+
+export VIRTUAL_ENV="$PWD/.venv"
+export PATH="$VIRTUAL_ENV/bin:$PATH"
+
+dotenv_if_exists

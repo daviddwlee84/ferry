@@ -1,0 +1,38 @@
+# Example DAG spec for submit-dag.py.
+#
+# Topology:
+#   fetch  →  featurize  ──┬──>  train_a  ──┐
+#                          │                ├──>  evaluate
+#                          └──>  train_b  ──┘
+#
+# `--after` is AND-only and success-only:
+#   - evaluate runs only after BOTH train_a AND train_b succeed
+#   - if any parent fails, downstream tasks become DependencyFailed (never run)
+#
+# Submit:
+#   submit-dag.py assets/dag.example.yaml --label-prefix nightly-
+# Dry-run first:
+#   submit-dag.py assets/dag.example.yaml --dry-run --print-graph
+
+version: 1
+default_group: default
+
+tasks:
+  fetch:
+    cmd: 'echo "fetching data"; sleep 1'
+
+  featurize:
+    cmd: 'echo "featurizing"; sleep 1'
+    after: [fetch]
+
+  train_a:
+    cmd: 'echo "training A"; sleep 1'
+    after: [featurize]
+
+  train_b:
+    cmd: 'echo "training B"; sleep 1'
+    after: [featurize]
+
+  evaluate:
+    cmd: 'echo "evaluating both"; sleep 1'
+    after: [train_a, train_b]

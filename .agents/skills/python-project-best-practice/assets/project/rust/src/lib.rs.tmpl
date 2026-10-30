@@ -1,0 +1,20 @@
+use pyo3::prelude::*;
+
+/// Repeat a greeting. Mirrors PACKAGE_NAME_PLACEHOLDER.core.greet so the two
+/// implementations can be property-tested against each other.
+#[pyfunction]
+#[pyo3(signature = (name, times = 1))]
+fn greet(name: &str, times: usize) -> PyResult<Vec<String>> {
+    if times < 1 {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "times must be >= 1, got {times}"
+        )));
+    }
+    Ok(vec![format!("Hello, {name}!"); times])
+}
+
+#[pymodule]
+fn _rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(greet, m)?)?;
+    Ok(())
+}

@@ -1,0 +1,14 @@
+[package]
+name = "PACKAGE_NAME_PLACEHOLDER"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# Must match [tool.maturin] module-name in pyproject.toml.
+name = "_rust"
+crate-type = ["cdylib"]
+
+[dependencies]
+# abi3-pyXY builds one wheel that works on that Python and every later one,
+# instead of a separate wheel per interpreter version.
+pyo3 = { version = "0.23", features = ["extension-module", "abi3-pyABI3_PLACEHOLDER"] }

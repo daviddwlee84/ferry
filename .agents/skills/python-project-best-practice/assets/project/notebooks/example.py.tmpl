@@ -1,0 +1,90 @@
+# /// script
+# requires-python = ">=PYTHON_FLOOR_PLACEHOLDER"
+# dependencies = ["marimo>=0.10", "tyro>=0.9.5"]
+# ///
+"""A marimo notebook that is also a CLI.
+
+    uv run marimo edit notebooks/example.py     # interactive UI
+    uv run notebooks/example.py --name ada      # same notebook, batch mode
+
+The single idiom that makes this work is branching on
+`mo.app_meta().mode == "script"` exactly once, then letting every cell below
+consume `params` without caring where it came from.
+
+For the full pattern - sweeps, MLflow tracking, live training charts, HF Jobs
+launching - use the `marimo-batch-mlflow` skill.
+"""
+
+import marimo
+
+__generated_with = "0.10.0"
+app = marimo.App(width="medium")
+
+
+@app.cell
+def _():
+    import dataclasses
+
+    import marimo as mo
+    import tyro
+
+    return dataclasses, mo, tyro
+
+
+@app.cell
+def _(dataclasses):
+    @dataclasses.dataclass(frozen=True)
+    class Params:
+        """Notebook parameters. Shared by the form and the CLI."""
+
+        name: str = "world"
+        """Who to greet."""
+
+        times: int = 1
+        """How many greetings to produce."""
+
+    return (Params,)
+
+
+@app.cell
+def _(Params, mo, tyro):
+    is_script_mode = mo.app_meta().mode == "script"
+
+    form = (
+        mo.md("""
+        **Parameters**
+
+        {name}
+        {times}
+        """)
+        .batch(
+            name=mo.ui.text(value="world", label="name"),
+            times=mo.ui.slider(1, 10, value=1, label="times"),
+        )
+        .form()
+    )
+    form if not is_script_mode else None
+    return form, is_script_mode
+
+
+@app.cell
+def _(Params, form, is_script_mode, mo, tyro):
+    if is_script_mode:
+        params = tyro.cli(Params)
+    else:
+        mo.stop(form.value is None, mo.md("*Submit the form to run.*"))
+        params = Params(**form.value)
+    return (params,)
+
+
+@app.cell
+def _(mo, params):
+    lines = [f"Hello, {params.name}!"] * params.times
+    for line in lines:
+        print(line)
+    mo.md(f"Produced **{len(lines)}** line(s).")
+    return (lines,)
+
+
+if __name__ == "__main__":
+    app.run()

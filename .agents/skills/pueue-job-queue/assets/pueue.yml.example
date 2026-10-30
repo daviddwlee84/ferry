@@ -1,0 +1,55 @@
+# Example pueue.yml. Copy this to your platform-specific config path:
+#
+#   macOS:   ~/Library/Application Support/pueue/pueue.yml
+#   Linux:   ~/.config/pueue/pueue.yml          (or $XDG_CONFIG_HOME/pueue/pueue.yml)
+#   Windows: %APPDATA%\pueue\pueue.yml
+#
+# After editing, restart the daemon for changes to take effect:
+#   pueue shutdown && pueued -d
+#
+# Pueued auto-creates this file with defaults on first start. The settings
+# below are an opinionated starting point for agent-driven workflows.
+
+shared:
+  use_unix_socket: true
+  # pueue_directory:  ~/Library/Application Support/pueue   # macOS default
+  # pueue_directory:  ~/.local/share/pueue                  # Linux default
+
+daemon:
+  # Slots for the `default` group on first launch. After the group exists,
+  # adjust with: pueue parallel <N> --group default
+  default_parallel_tasks: 1
+
+  # When ANY task in a group fails, pause the whole group — new tasks won't
+  # auto-start until you `pueue start --group G`. Strongly recommended for
+  # agent workflows: catches cascading failures (e.g. 30 sweep tasks all
+  # failing on a typo'd env var) before they all run.
+  pause_group_on_failure: true
+
+  # Even more aggressive: pause every group on any failure. Usually overkill.
+  pause_all_on_failure: false
+
+  # Pre-declare groups + their parallelism. Equivalent to running
+  # `pueue group add <name>` + `pueue parallel <N> --group <name>` for each.
+  groups:
+    default: 1
+    ml: 4         # GPU-bound training jobs
+    io: 2         # Network/disk-bound (downloads, uploads)
+    cpu: 8        # CPU-bound preprocessing
+
+  # Optional: shell command run after every finished task. Receives env vars:
+  #   $PUEUE_TASK_ID, $PUEUE_GROUP, $PUEUE_RESULT, $PUEUE_INPUT (cmd),
+  #   $PUEUE_EXIT_CODE, $PUEUE_ENQUEUED_AT, $PUEUE_START, $PUEUE_END.
+  # callback: 'echo "[$PUEUE_GROUP] task $PUEUE_TASK_ID finished: $PUEUE_RESULT" >> ~/pueue-audit.log'
+  # callback_log_lines: 10
+
+client:
+  read_local_logs: true
+  show_confirmation_questions: false  # don't block agent workflows on y/n prompts
+  show_expanded_aliases: false
+
+  # What `pueue edit` opens. -f keeps vim from forking.
+  edit_cmd: ["vim", "-f"]
+
+  status_time_format: "%H:%M:%S"
+  status_datetime_format: "%Y-%m-%d %H:%M:%S"

@@ -1,0 +1,97 @@
+# PROJECT_SLUG_PLACEHOLDER - the canonical command surface.
+#
+# `just --list` is the discovery entry point for humans AND agents. If an
+# operation matters, it belongs here: nobody should have to reverse-engineer a
+# command out of CI config.
+#
+# No `just` on the machine? Every recipe below is a plain `uv run ...` line you
+# can paste. See AGENTS.md for the taskipy alternative.
+
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+default:
+    @just --list
+
+# Create/refresh .venv exactly as uv.lock describes. Safe to re-run.
+setup:
+    uv sync
+
+# Everything CI runs, ordered to fail fastest. Run before every commit.
+check: fmt-check lint-check types test docs-check
+
+fmt:
+    uv run ruff format .
+
+fmt-check:
+    uv run ruff format --check .
+
+lint:
+    uv run ruff check --fix .
+
+lint-check:
+    uv run ruff check .
+
+types:
+    uv run ty check
+
+test *ARGS:
+    uv run pytest {{ARGS}}
+
+cov:
+    uv run pytest --cov --cov-report=term-missing --cov-fail-under=80
+
+# Assert uv.lock matches pyproject.toml without changing either.
+lock-check:
+    uv lock --check
+
+# __IF:cli,lib,api,ml,rust__
+# Rewrite the CLI reference block in AGENTS.md and .agents/skills/ from --help.
+# Run after every change to a command, a flag, or a command docstring.
+docs-sync:
+    uv run python scripts/sync_agent_docs.py
+
+# Fail if the committed CLI reference is stale. This is the gate that keeps the
+# agent-facing docs honest as the package evolves.
+docs-check:
+    uv run python scripts/sync_agent_docs.py --check
+
+# Write a shell completion script. tyro ships this; no shtab wiring needed.
+#   just completion zsh  ~/.zfunc/_PROJECT_SLUG_PLACEHOLDER
+#   just completion bash "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/PROJECT_SLUG_PLACEHOLDER"
+completion SHELL OUT:
+    uv run PROJECT_SLUG_PLACEHOLDER --tyro-write-completion {{SHELL}} {{OUT}}
+# __END__
+# __IF:minimal__
+docs-check:
+    @echo "no CLI in the minimal profile; nothing to check" >&2
+# __END__
+
+# __IF:api__
+serve PORT="8000":
+    uv run uvicorn PACKAGE_NAME_PLACEHOLDER.api.app:app --reload --port {{PORT}}
+# __END__
+
+# __IF:ml__
+notebook FILE="notebooks/example.py":
+    uv run marimo edit {{FILE}}
+# __END__
+
+# __IF:rust__
+# `uv sync` does NOT rebuild the Rust extension after you edit rust/: it sees
+# the package as already installed, so you keep running the stale binary with
+# no warning. Run this after every Rust edit.
+build-rust:
+    uv sync --reinstall-package PROJECT_SLUG_PLACEHOLDER
+
+# Faster incremental loop while iterating on the crate.
+build-rust-dev:
+    uv run maturin develop --uv
+# __END__
+
+build:
+    uv build
+
+# Requires PyPI Trusted Publishing (OIDC) configured for this repo. Do not put
+# a PyPI API token in Actions secrets.
+publish: build
+    uv publish

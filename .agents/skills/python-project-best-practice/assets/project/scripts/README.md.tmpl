@@ -1,0 +1,29 @@
+# scripts/
+
+Repo helpers that are **not** part of the shipped package. Nothing in
+`src/PACKAGE_NAME_PLACEHOLDER/` may import from here.
+
+Two kinds live here, and the distinction decides how you write the file:
+
+| Kind | How it runs | Dependencies |
+|---|---|---|
+| Needs the project | `uv run python scripts/foo.py` | the project env (`uv.lock`) |
+| Standalone | `uv run scripts/foo.py` | its own PEP 723 header |
+
+A standalone helper declares its dependencies inline, so it works in a fresh
+clone before `uv sync` has ever run:
+
+```python
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=PYTHON_FLOOR_PLACEHOLDER"
+# dependencies = ["httpx>=0.28"]
+# ///
+```
+
+A PEP 723 script must not `import PACKAGE_NAME_PLACEHOLDER` unless the package
+is listed in its own `dependencies` - it runs in an isolated environment that
+does not contain your project.
+
+Anything worth running twice gets a `just` recipe so it shows up in
+`just --list`.

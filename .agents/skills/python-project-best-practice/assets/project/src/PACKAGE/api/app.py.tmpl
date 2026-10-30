@@ -1,0 +1,49 @@
+"""FastAPI application.
+
+Interactive OpenAPI docs are served at /docs (Swagger UI) and /redoc; the raw
+schema is at /openapi.json. For production patterns beyond this stub -
+lifespan-loaded models, auth, SSE streaming, repositories - use the
+`fastapi-ai-patterns` skill instead of growing this file.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from pydantic import BaseModel, Field
+
+from PACKAGE_NAME_PLACEHOLDER import __version__
+from PACKAGE_NAME_PLACEHOLDER._log import configure
+from PACKAGE_NAME_PLACEHOLDER.core import greet
+from PACKAGE_NAME_PLACEHOLDER.settings import Settings
+
+
+class GreetRequest(BaseModel):
+    name: str = Field(default="world", description="Who to greet.")
+    times: int = Field(default=1, ge=1, description="How many greetings to return.")
+
+
+class GreetResponse(BaseModel):
+    lines: list[str]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    settings = Settings()
+    configure(level=settings.log_level, json=settings.log_json)
+    yield
+
+
+app = FastAPI(title="PROJECT_SLUG_PLACEHOLDER", version=__version__, lifespan=lifespan)
+
+
+@app.get("/health", summary="Liveness probe")
+async def health() -> dict[str, str]:
+    return {"status": "ok", "version": __version__}
+
+
+@app.post("/greet", response_model=GreetResponse, summary="Return greetings")
+async def post_greet(request: GreetRequest) -> GreetResponse:
+    return GreetResponse(lines=greet(request.name, request.times))

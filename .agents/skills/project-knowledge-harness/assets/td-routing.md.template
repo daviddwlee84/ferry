@@ -1,0 +1,32 @@
+<!-- Snippet for the agent contract when td (https://github.com/marcus/td) is
+     used alongside project-knowledge-harness. init.sh appends it between
+     sentinel markers when td is detected (or with --td on); safe to re-run. -->
+
+### td ↔ `TODO.md` routing
+
+This repo uses both. Each piece of information lives in exactly **one** place:
+
+| Information | Lives in | Why |
+|---|---|---|
+| "Maybe later" ideas, priorities, deferred work | `TODO.md` (+ `backlog/`) | In git, so it follows every clone and devbox |
+| Research, trade-offs, past traps | `backlog/`, `pitfalls/` | Diffable, greppable, reviewed in PRs |
+| What is in flight now, logs, handoffs, review | td | Machine-local execution state |
+
+Rules:
+
+1. When the user says "maybe later" or "先記下來", use `add-todo.sh`. Do not use
+   `td create` or `td defer` for that.
+2. To start a `TODO.md` item, run `start-todo.sh --title "<substring>"`. It
+   creates or reuses a td issue labelled `pkh` with the same title, then
+   starts it. Ad-hoc session work with no `TODO.md` line can use plain `td`.
+3. On shipping, run `promote-todo.sh` in the same commit, then
+   `td review` / `td approve` the issue.
+4. **Harvest before you approve.** td logs and handoffs stay on this machine.
+   Move anything worth keeping into `pitfalls/` or `backlog/` first.
+5. References go one way: the td issue names its `TODO.md` item. Never write
+   td ids into `TODO.md` (other clones cannot resolve them). Never commit
+   `.todos/`.
+6. If a td issue and `TODO.md` disagree, `TODO.md` wins. `todo-kanban.sh`
+   lists open `pkh` issues that have no active `TODO.md` item.
+
+Set `PKH_TD=off` to make the harness scripts ignore td.

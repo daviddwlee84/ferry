@@ -1,0 +1,50 @@
+"""Logging configuration. Called by entry points only, never at import time.
+
+loguru is the application-side logger. Anything under this package that is
+library code logs through ``logging.getLogger(__name__)`` and stays silent
+until an entry point calls :func:`configure`.
+"""
+
+from __future__ import annotations
+
+import logging
+import sys
+
+
+class _InterceptHandler(logging.Handler):
+    """Route stdlib ``logging`` records into loguru.
+
+    Without this, records from your dependencies (urllib3, uvicorn, ...) keep
+    going to stdlib handlers and you end up with two differently-formatted log
+    streams in the same terminal.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        from loguru import logger
+
+        try:
+            level: str | int = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+        frame, depth = logging.currentframe(), 2
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
+def configure(level: str = "INFO", *, json: bool = False) -> None:
+    """Install the single application log sink. Idempotent."""
+    from loguru import logger
+
+    # loguru installs a default stderr sink at import. Without this remove()
+    # every line is printed twice, once by the default sink and once by ours.
+    logger.remove()
+    logger.add(
+        sys.stderr,
+        level=level,
+        serialize=json,
+        backtrace=False,
+        diagnose=False,  # diagnose=True prints local variables - can leak secrets.
+    )
+    logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)

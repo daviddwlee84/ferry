@@ -95,6 +95,14 @@ def main(argv: list[str] | None = None) -> int:
                 lines.append(f"  host budget ({host.source}): up {human(host.upload_rate)}/s, "
                              f"down {human(host.download_rate)}/s, "
                              f"{host.max_transfers or 'unlimited'} transfer(s) per direction")
+            from .windows import wait_seconds
+            for direction in ("upload", "download"):
+                pair = [getattr(job.remote, f"{direction}_schedule"), host.schedule(direction)]
+                if any(pair):
+                    wait = wait_seconds(pair)
+                    state = ("open now" if wait == 0 else "never opens (check windows)"
+                             if wait is None else f"opens in {wait / 3600:.1f} h")
+                    lines.append(f"  {direction} window: {state}")
             if report.proxy_env_stripped:
                 lines.append("  proxy env (removed for child processes): "
                              + ", ".join(report.proxy_env_stripped))

@@ -69,3 +69,39 @@ def blocked_for(windows: list[Window], now: dt.datetime | None = None) -> float:
         total += wait
         now += dt.timedelta(seconds=wait)
     return total
+
+
+@dataclass(frozen=True)
+class Schedule:
+    """When a transfer direction may run: inside any `allowed` window (if any are given)
+    and outside every `blocked` window. Empty schedule = always open."""
+
+    allowed: tuple[Window, ...] = ()
+    blocked: tuple[Window, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.allowed or self.blocked)
+
+    def is_open(self, now: dt.datetime) -> bool:
+        if self.allowed and not any(w.contains(now) for w in self.allowed):
+            return False
+        return not any(w.contains(now) for w in self.blocked)
+
+
+def wait_seconds(schedules: list[Schedule], now: dt.datetime | None = None,
+                 *, step: int = 60, horizon_days: int = 8) -> float | None:
+    """Seconds until every schedule is open (0 if open now; None if never within horizon).
+
+    Windows are minute-aligned, so a minute-step scan is exact enough and simple.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    active = [s for s in schedules if s]
+    if all(s.is_open(now) for s in active):
+        return 0.0
+    probe = now.replace(second=0, microsecond=0) + dt.timedelta(seconds=step)
+    end = now + dt.timedelta(days=horizon_days)
+    while probe <= end:
+        if all(s.is_open(probe) for s in active):
+            return (probe - now).total_seconds()
+        probe += dt.timedelta(seconds=step)
+    return None

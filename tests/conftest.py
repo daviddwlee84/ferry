@@ -44,3 +44,11 @@ def make_job(tmp_path):
 def tree(root: Path) -> dict[str, bytes]:
     return {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*"))
             if p.is_file()}
+
+
+@pytest.fixture(autouse=True)
+def _isolated_host_budget(tmp_path_factory, monkeypatch):
+    """Never read the developer's real ~/.config/ferry/host.toml or slot directory."""
+    base = tmp_path_factory.mktemp("host")
+    monkeypatch.setenv("FERRY_HOST_CONFIG", str(base / "host.toml"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(base / "state"))

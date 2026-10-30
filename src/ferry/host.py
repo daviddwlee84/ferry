@@ -54,6 +54,7 @@ class HostBudget:
     source: Path | None = None
     upload_schedule: Schedule = Schedule()
     download_schedule: Schedule = Schedule()
+    stop_at_window_end: bool = True
 
     def schedule(self, direction: str) -> Schedule:
         return self.upload_schedule if direction == "upload" else self.download_schedule
@@ -118,7 +119,7 @@ def load_host_budget(path: Path | None = None) -> HostBudget:
     with path.open("rb") as f:
         data = tomllib.load(f)
     known = {"upload_rate", "download_rate", "max_transfers", "slot_dir", "upload_allowed",
-             "upload_blocked", "download_allowed", "download_blocked"}
+             "upload_blocked", "download_allowed", "download_blocked", "stop_at_window_end"}
     unknown = set(data) - known
     if unknown:
         raise ValueError(f"{path}: unknown host settings {sorted(unknown)}")
@@ -131,4 +132,5 @@ def load_host_budget(path: Path | None = None) -> HostBudget:
     if "slot_dir" in data:
         slot_dir = Path(os.path.expanduser(data["slot_dir"]))
     return HostBudget(up, down, max_transfers, slot_dir, path,
-                      parse_schedule(data, "upload"), parse_schedule(data, "download"))
+                      parse_schedule(data, "upload"), parse_schedule(data, "download"),
+                      bool(data.get("stop_at_window_end", True)))

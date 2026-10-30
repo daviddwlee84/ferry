@@ -73,3 +73,49 @@ def test_put_waits_for_window_then_transfers(tmp_path, monkeypatch):
     adapter.put(src, "/p/f")
     assert naps == [300] and (tmp_path / "relay" / "p" / "f").read_bytes() == b"data"
     assert isinstance(adapter, LocalAdapter)
+
+
+def test_deadline_stops_a_running_transfer():
+    import time as _time
+
+    from ferry.proc import WindowClosed, run_transfer, transfer_deadline
+    started = _time.monotonic()
+    with pytest.raises(WindowClosed), transfer_deadline(0.3):
+        run_transfer(["sleep", "5"])
+    assert _time.monotonic() - started < 3
+    assert run_transfer(["true"]) == ""  # no deadline outside the block
+
+
+def test_seconds_until_close():
+    from ferry.windows import seconds_until_close
+    inside = dt.datetime(2026, 10, 31, 6, 30, tzinfo=CST)
+    assert seconds_until_close([NIGHT], inside) == pytest.approx(30 * 60)
+    assert seconds_until_close([Schedule()], inside) is None  # always open
+
+
+def test_window_end_cuts_backend_and_can_be_disabled(tmp_path, monkeypatch):
+    from ferry.proc import WindowClosed, run_transfer
+
+    class SlowAdapter(LocalAdapter):
+        def put(self, local, remote):
+            run_transfer(["sleep", "5"])
+
+    monkeypatch.setattr("ferry.core.make_adapter",
+                        lambda name, options, log=None: SlowAdapter(options, log))
+    monkeypatch.setattr(core, "wait_seconds", lambda schedules: 0.0)
+    monkeypatch.setattr(core, "seconds_until_close", lambda schedules: 0.3)
+    base = {"name": "w", "state_dir": str(tmp_path / "state"),
+            "units": {"root": str(tmp_path), "glob": "*"}}
+    remote = {"adapter": "local", "prefix": "/p", "options": {"root": str(tmp_path)},
+              "upload_allowed": ["* 04:00-07:00 Asia/Shanghai"]}
+    adapter = adapter_for(job_from_dict({**base, "remote": remote}), "sender")
+    with pytest.raises(WindowClosed):
+        adapter.put(tmp_path / "x", "/p/x")
+    calls = []
+    monkeypatch.setattr(core, "seconds_until_close", lambda schedules: calls.append(1) or 0.3)
+    monkeypatch.setattr(SlowAdapter, "put", lambda self, local, remote: None)
+    relaxed = adapter_for(job_from_dict({**base, "remote": {**remote,
+                                                            "stop_at_window_end": False}}),
+                          "sender")
+    relaxed.put(tmp_path / "x", "/p/x")
+    assert calls == []  # no deadline computed when stopping is disabled

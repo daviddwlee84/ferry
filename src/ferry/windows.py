@@ -105,3 +105,19 @@ def wait_seconds(schedules: list[Schedule], now: dt.datetime | None = None,
             return (probe - now).total_seconds()
         probe += dt.timedelta(seconds=step)
     return None
+
+
+def seconds_until_close(schedules: list[Schedule], now: dt.datetime | None = None,
+                        *, step: int = 60, horizon_days: int = 8) -> float | None:
+    """While open: seconds until any schedule closes (None if it stays open past horizon)."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    active = [s for s in schedules if s]
+    if not active:
+        return None
+    probe = now.replace(second=0, microsecond=0) + dt.timedelta(seconds=step)
+    end = now + dt.timedelta(days=horizon_days)
+    while probe <= end:
+        if not all(s.is_open(probe) for s in active):
+            return max(0.0, (probe - now).total_seconds())
+        probe += dt.timedelta(seconds=step)
+    return None

@@ -271,8 +271,11 @@ download_blocked = ["Mon-Fri 09:15-15:30 Asia/Shanghai"]  # never during market 
 
 Days are `Mon-Fri`, `Sat,Sun` or `*`; a window must end after it starts on the same day
 (split overnight ranges in two). Outside a window ferry waits and logs when it opens next;
-`ferry doctor` shows the state. A part already in flight finishes when the window
-closes (no new parts start), because interrupted backend uploads restart from zero.
+`ferry doctor` shows the state. When a window closes, a transfer still running is
+stopped and its part is retried in the next window (`stop_at_window_end = true`, the
+default, in `[remote]` or `host.toml`); set it to `false` to let the part finish
+instead. Interrupted backend uploads restart that part from zero, so keep `part_size`
+small (e.g. `256MiB`) on jobs with tight windows.
 This is separate from `sender.read_blocked`, which only pauses packing (source reads).
 
 ## Egress

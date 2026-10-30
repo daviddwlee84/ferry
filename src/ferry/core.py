@@ -14,8 +14,9 @@ from .adapters import Adapter, make_adapter
 from .egress import check_routes, proxy_vars_present
 from .host import HostBudget, load_host_budget
 from .job import Job
+from .proc import transfer_deadline
 from .protocol import Ledger
-from .windows import wait_seconds
+from .windows import seconds_until_close, wait_seconds
 
 
 class PreflightError(RuntimeError):
@@ -62,7 +63,8 @@ def adapter_for(job: Job, side: str, host: HostBudget | None = None) -> Adapter:
         "download": [job.remote.download_schedule, host.schedule("download")],
     }
     if host.max_transfers or any(s for pair in schedules.values() for s in pair):
-        _gate(adapter, host, schedules)
+        stop = job.remote.stop_at_window_end and host.stop_at_window_end
+        _gate(adapter, host, schedules, stop_at_window_end=stop)
     return adapter
 
 
@@ -86,7 +88,8 @@ def wait_for_window(direction: str, schedules: list, *, sleep=None,
         sleep(min(wait, max_nap))
 
 
-def _gate(adapter: Adapter, host: HostBudget, schedules: dict) -> None:
+def _gate(adapter: Adapter, host: HostBudget, schedules: dict, *,
+          stop_at_window_end: bool = True) -> None:
     put, get = adapter.put, adapter.get
     log = logging.getLogger("ferry.host")
 
@@ -94,14 +97,19 @@ def _gate(adapter: Adapter, host: HostBudget, schedules: dict) -> None:
         log.info("waiting for a host %s slot (%d in use by other ferry transfers)",
                  direction, slots)
 
+    def limit(direction: str):
+        # Stop the backend when the window closes; the part is retried in the next window.
+        close = seconds_until_close(schedules[direction]) if stop_at_window_end else None
+        return transfer_deadline(close)
+
     def gated_put(local: Path, remote: str) -> None:
         wait_for_window("upload", schedules["upload"])
-        with host.slot("upload", on_wait=waiting):
+        with host.slot("upload", on_wait=waiting), limit("upload"):
             put(local, remote)
 
     def gated_get(remote: str, local: Path) -> None:
         wait_for_window("download", schedules["download"])
-        with host.slot("download", on_wait=waiting):
+        with host.slot("download", on_wait=waiting), limit("download"):
             get(remote, local)
 
     adapter.put, adapter.get = gated_put, gated_get

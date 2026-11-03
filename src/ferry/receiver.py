@@ -108,6 +108,17 @@ def _has_room(job: Job, m: Manifest, log) -> bool:
     return True
 
 
+def _extract_filter(member: tarfile.TarInfo, dest: str) -> tarfile.TarInfo | None:
+    """``tar_filter`` (no absolute paths, nothing outside ``dest``) plus no device files.
+
+    Unlike ``data_filter`` it keeps symlink targets verbatim: units mirror the source,
+    where links may legitimately point anywhere (even to missing targets).
+    """
+    if member.isdev():
+        raise tarfile.SpecialFileError(member)
+    return tarfile.tar_filter(member, dest)
+
+
 def _extract_replacing(archive: Path, dest: Path, m: Manifest) -> None:
     """Extract so that each unit path mirrors the sender exactly (stale files removed).
 
@@ -120,7 +131,7 @@ def _extract_replacing(archive: Path, dest: Path, m: Manifest) -> None:
     shutil.rmtree(old, ignore_errors=True)
     scratch.mkdir(parents=True)
     with tarfile.open(archive, "r:") as tar:
-        tar.extractall(scratch, filter="data")
+        tar.extractall(scratch, filter=_extract_filter)
     paths = m.paths or tuple(p.name for p in scratch.iterdir())
     for rel in paths:
         new, target = scratch / rel, dest / rel

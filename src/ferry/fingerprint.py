@@ -4,6 +4,9 @@ The fingerprint hashes the sorted ``relative path<TAB>size`` list of every file 
 unit. It is equal on two hosts holding the same files regardless of mtimes, so it serves
 both change detection on the sender and seeding from data the receiver already has.
 Content integrity is still guaranteed separately by sha256 during transfer.
+
+Symlinks are never followed (``lstat``): they are packed as links, so a dangling link
+must not crash the sender and a link's target size must not count as unit content.
 """
 from __future__ import annotations
 
@@ -27,14 +30,17 @@ def files_of(unit: Unit) -> list[tuple[str, os.stat_result]]:
     out = []
     for rel in unit.members:
         top = unit.root / rel
-        if top.is_file():
-            out.append((rel, top.stat()))
+        if top.is_symlink() or top.is_file():
+            out.append((rel, top.lstat()))
             continue
         for dirpath, dirnames, filenames in os.walk(top):
             dirnames.sort()
-            for name in filenames:
+            # os.walk never descends into symlinked directories but lists them as dirs;
+            # they are unit content (a link entry), so record them as files.
+            links = [d for d in dirnames if (Path(dirpath) / d).is_symlink()]
+            for name in filenames + links:
                 path = Path(dirpath) / name
-                out.append((str(path.relative_to(unit.root)), path.stat()))
+                out.append((str(path.relative_to(unit.root)), path.lstat()))
     out.sort()
     return out
 

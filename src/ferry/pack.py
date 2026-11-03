@@ -76,7 +76,9 @@ def pack_unit(unit: Unit, stage: Path, *, job: str, fmt: str, part_size: int | N
             for rel in unit.members:
                 for path in _walk(unit.root / rel):
                     tar.add(path, arcname=str(path.relative_to(unit.root)), recursive=False)
-                    members += not path.is_dir()
+                    # Count what the receiver will see: every non-directory entry. A
+                    # symlink is stored as a link entry even when it points to a directory.
+                    members += path.is_symlink() or not path.is_dir()
         filename = f"{unit.key}.tar"
     else:
         source = unit.root / unit.members[0]

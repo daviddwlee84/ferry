@@ -90,7 +90,7 @@ def receive(job: Job, *, once: bool = False, follow: bool = False, allow_proxy: 
                 except WindowClosed as e:
                     log.info("receive %s paused: %s", key, e)
                     led.append("paused", key, reason=str(e)[:200])
-                except Exception as e:  # noqa: BLE001 - keep receiving other units
+                except Exception as e:
                     attempts[key] = attempts.get(key, 0) + 1
                     delay = min(RETRY_BASE * 2 ** (attempts[key] - 1), RETRY_MAX)
                     retry_at[key] = time.monotonic() + delay

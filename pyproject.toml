@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Resumable bulk transfer between hosts that cannot reach each other, relayed through cloud storage"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.11.4"  # tarfile extraction filters
 dependencies = []
 
 [project.scripts]
@@ -28,7 +28,7 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W", "B"]
+select = ["E", "F", "I", "W", "B", "UP", "SIM", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

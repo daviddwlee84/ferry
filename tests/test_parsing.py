@@ -55,7 +55,7 @@ def test_baidu_config_proxy():
     (dt.datetime(2026, 10, 30, 15, 29, tzinfo=CST), True),
     (dt.datetime(2026, 10, 30, 15, 30, tzinfo=CST), False),
     (dt.datetime(2026, 10, 31, 11, 0, tzinfo=CST), False),   # Saturday
-    (dt.datetime(2026, 10, 30, 3, 0, tzinfo=dt.timezone.utc), True),  # 11:00 CST
+    (dt.datetime(2026, 10, 30, 3, 0, tzinfo=dt.UTC), True),  # 11:00 CST
 ])
 def test_window(when, blocked):
     w = Window.parse("Mon-Fri 09:15-15:30 Asia/Shanghai")

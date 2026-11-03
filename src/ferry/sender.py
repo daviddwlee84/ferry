@@ -128,7 +128,7 @@ def send(job: Job, *, follow: bool = False, allow_proxy: bool = False, poll: flo
                     # Not a failure: the next put() waits for the window to reopen.
                     log.info("push %s paused: %s", directory.name, e)
                     led.append("paused", directory.name, reason=str(e)[:200])
-                except Exception as e:  # noqa: BLE001 - keep relaying other units
+                except Exception as e:
                     log.error("push %s failed: %s (retry in %ds)", directory.name, e, backoff)
                     led.append("failed", directory.name, stage="push", error=str(e)[:500])
                     stop.wait(backoff)

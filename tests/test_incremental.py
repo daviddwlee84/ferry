@@ -88,7 +88,7 @@ def test_glob_keys_never_collide_with_protocol_names(tmp_path):
 def test_trusted_interface_is_accepted(make_job):
     from ferry.egress import check_routes
 
-    def resolve(host, port, type=None):  # noqa: A002
+    def resolve(host, port, type=None):
         import socket
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("110.242.70.78", port))]
 

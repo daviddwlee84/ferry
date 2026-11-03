@@ -42,7 +42,7 @@ def answers(tmp_path, *, backend="local", selection="glob", pack="tar", side="se
     values += ["/ferry/sample", side, method]
     if method == "cron":
         values += ["0 2 * * *"]
-    return values + [confirm]
+    return [*values, confirm]
 
 
 def invoke(tmp_path, values, *, to_stdout=False, target=None):

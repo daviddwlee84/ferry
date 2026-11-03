@@ -116,7 +116,7 @@ class Job:
 
 
 def _duration(value: str | int | float) -> float:
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return float(value)
     m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([smhd]?)\s*", value)
     if not m:

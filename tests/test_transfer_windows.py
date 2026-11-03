@@ -38,7 +38,7 @@ def test_blocked_window_and_combination():
 def test_never_open_is_reported():
     never = Schedule(allowed=(Window.parse("Sat 01:00-02:00 UTC"),),
                      blocked=(Window.parse("Sat 00:00-23:59 UTC"),))
-    assert wait_seconds([never], dt.datetime(2026, 10, 30, tzinfo=dt.timezone.utc)) is None
+    assert wait_seconds([never], dt.datetime(2026, 10, 30, tzinfo=dt.UTC)) is None
     with pytest.raises(PreflightError):
         wait_for_window("upload", [never], sleep=lambda s: None)
 

@@ -14,7 +14,7 @@ def test_clean_env_strips_every_proxy_variable():
 
 
 def _resolver(mapping):
-    def resolve(host, port, type=None):  # noqa: A002 - mirrors getaddrinfo
+    def resolve(host, port, type=None):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (mapping[host], port))]
     return resolve
 

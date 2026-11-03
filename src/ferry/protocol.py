@@ -37,7 +37,7 @@ def is_safe_relative(path: str) -> bool:
 
 
 def utcnow() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
 
 
 @dataclass(frozen=True)

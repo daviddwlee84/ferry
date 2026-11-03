@@ -32,7 +32,7 @@ def _rate(records: list[dict]) -> float | None:
 
 def _recent_failures(records: list[dict]) -> int:
     import datetime as dt
-    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).isoformat()
+    cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=1)).isoformat()
     return sum(1 for r in records if r["event"] == "failed" and r["ts"] >= cutoff)
 
 

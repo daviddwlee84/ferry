@@ -173,7 +173,10 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             stop.set()
             return 130
-        _print(args, asdict(result), json.dumps(asdict(result)))
+        summary = asdict(result)
+        counts = ", ".join(f"{k} {v}" for k, v in summary.items() if k != "failed")
+        _print(args, summary, counts + (f"; failed: {', '.join(result.failed)}"
+                                        if result.failed else ""))
         return 1 if result.failed else 0
     except (JobError, PreflightError, AlreadyRunning, ValueError) as e:
         print(f"ferry: {e}", file=sys.stderr)

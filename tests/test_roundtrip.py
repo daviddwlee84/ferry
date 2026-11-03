@@ -102,9 +102,8 @@ def test_corrupted_relay_part_is_rejected_and_kept(make_job):
 
 def test_second_instance_is_refused(make_job):
     job, *_ = make_job()
-    with instance_lock(job, "sender"):
-        with pytest.raises(AlreadyRunning):
-            send(job, **FAST)
+    with instance_lock(job, "sender"), pytest.raises(AlreadyRunning):
+        send(job, **FAST)
 
 
 def test_direct_egress_policy_fails_closed(make_job):

@@ -72,7 +72,7 @@ class Prompts:
 
 def _name(value: str) -> str:
     if not _KEY.fullmatch(value):
-        raise ValueError("use 1–128 letters, digits, dots, underscores or hyphens; "
+        raise ValueError("use 1-128 letters, digits, dots, underscores or hyphens; "
                          "start with a letter or digit")
     return value
 

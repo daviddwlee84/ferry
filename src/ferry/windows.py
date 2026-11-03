@@ -60,7 +60,7 @@ def _parse_days(text: str) -> frozenset[int]:
 
 def blocked_for(windows: list[Window], now: dt.datetime | None = None) -> float:
     """Seconds until no window blocks ``now`` (0 when free). Handles adjacent windows."""
-    now = now or dt.datetime.now(dt.timezone.utc)
+    now = now or dt.datetime.now(dt.UTC)
     total = 0.0
     for _ in range(len(windows) + 1):
         wait = max((w.seconds_until_open(now) for w in windows), default=0.0)
@@ -94,7 +94,7 @@ def wait_seconds(schedules: list[Schedule], now: dt.datetime | None = None,
 
     Windows are minute-aligned, so a minute-step scan is exact enough and simple.
     """
-    now = now or dt.datetime.now(dt.timezone.utc)
+    now = now or dt.datetime.now(dt.UTC)
     active = [s for s in schedules if s]
     if all(s.is_open(now) for s in active):
         return 0.0
@@ -110,7 +110,7 @@ def wait_seconds(schedules: list[Schedule], now: dt.datetime | None = None,
 def seconds_until_close(schedules: list[Schedule], now: dt.datetime | None = None,
                         *, step: int = 60, horizon_days: int = 8) -> float | None:
     """While open: seconds until any schedule closes (None if it stays open past horizon)."""
-    now = now or dt.datetime.now(dt.timezone.utc)
+    now = now or dt.datetime.now(dt.UTC)
     active = [s for s in schedules if s]
     if not active:
         return None

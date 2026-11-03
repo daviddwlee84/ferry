@@ -22,7 +22,7 @@ import os
 import time
 import tomllib
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -55,8 +55,8 @@ class HostBudget:
     max_transfers: int | None = None  # None: no slot limit
     slot_dir: Path = Path()
     source: Path | None = None
-    upload_schedule: Schedule = Schedule()
-    download_schedule: Schedule = Schedule()
+    upload_schedule: Schedule = field(default_factory=Schedule)
+    download_schedule: Schedule = field(default_factory=Schedule)
     stop_at_window_end: bool = True
     #: Bytes per calendar day per direction (ISP fair-use quotas); None = unlimited.
     upload_daily: int | None = None
@@ -68,7 +68,7 @@ class HostBudget:
 
     def _today(self, now: dt.datetime | None = None) -> dt.datetime:
         tz = ZoneInfo(self.quota_timezone) if self.quota_timezone else None
-        now = now or dt.datetime.now(dt.timezone.utc)
+        now = now or dt.datetime.now(dt.UTC)
         return now.astimezone(tz) if tz else now.astimezone()
 
     @contextmanager

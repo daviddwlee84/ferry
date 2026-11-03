@@ -14,7 +14,7 @@ from .adapters import Adapter, make_adapter
 from .egress import check_routes, proxy_vars_present
 from .host import HostBudget, load_host_budget
 from .job import Job
-from .proc import transfer_deadline
+from .proc import transfer_deadline, transfer_stall
 from .protocol import Ledger
 from .windows import seconds_until_close, wait_seconds
 
@@ -66,7 +66,24 @@ def adapter_for(job: Job, side: str, host: HostBudget | None = None) -> Adapter:
             or any(s for pair in schedules.values() for s in pair)):
         stop = job.remote.stop_at_window_end and host.stop_at_window_end
         _gate(adapter, host, schedules, stop_at_window_end=stop)
+    if job.remote.stall_timeout:
+        adapter.stall_timeout = job.remote.stall_timeout
+        _watch_stalls(adapter, job.remote.stall_timeout)
     return adapter
+
+
+def _watch_stalls(adapter: Adapter, seconds: float) -> None:
+    put, get = adapter.put, adapter.get
+
+    def watched_put(local: Path, remote: str) -> None:
+        with transfer_stall(seconds):
+            put(local, remote)
+
+    def watched_get(remote: str, local: Path) -> None:
+        with transfer_stall(seconds):
+            get(remote, local)
+
+    adapter.put, adapter.get = watched_put, watched_get
 
 
 def wait_for_window(direction: str, schedules: list, *, sleep=None,

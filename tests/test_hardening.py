@@ -1,5 +1,7 @@
 """The relay is not trusted: unsafe names are refused, acks must match, retries back off."""
 import json
+import threading
+import time
 
 import pytest
 
@@ -11,6 +13,21 @@ from ferry.sender import send
 from .conftest import tree
 
 FAST = {"poll": 0.05}
+
+
+def _run_until(target, condition, timeout=20, settle=0.0):
+    """Run a side on a thread until `condition()` holds (or timeout), then stop it."""
+    stop = threading.Event()
+    out = {}
+    t = threading.Thread(target=lambda: out.setdefault("r", target(stop)))
+    t.start()
+    deadline = time.monotonic() + timeout
+    while not condition() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    time.sleep(settle)
+    stop.set()
+    t.join(timeout=30)
+    return out["r"]
 
 
 def test_name_predicates():
@@ -63,17 +80,12 @@ def test_ack_with_other_sha256_does_not_delete_source(make_job):
     acks = base / "relay" / "ferry" / "test" / "_acks"
     acks.mkdir(parents=True)
     (acks / "20200102.json").write_text(json.dumps({"key": "20200102", "sha256": "f" * 64}))
-    # one push loop pass is enough: acks are consumed before each push; the sender then
-    # waits for a real ack, so run it on a thread and stop it.
-    import threading
-    stop = threading.Event()
-    out = {}
-    t = threading.Thread(target=lambda: out.setdefault("r", send(job, stop=stop, **FAST)))
-    t.start()
-    t.join(timeout=1)
-    stop.set()
-    t.join(timeout=30)
-    assert out["r"].pushed == 1 and out["r"].source_deleted == 0
+    # acks are consumed before each push; the sender then waits for a real ack forever,
+    # so stop it once the unit is pushed.
+    ledger = job.state_dir / "sender.jsonl"
+    res = _run_until(lambda stop: send(job, stop=stop, **FAST),
+                     lambda: ledger.exists() and '"event": "pushed"' in ledger.read_text())
+    assert res.pushed == 1 and res.source_deleted == 0
     assert tree(src) == before
     assert (acks / "20200102.json").exists()  # kept for the operator to inspect
 
@@ -97,13 +109,7 @@ def test_failed_unit_backs_off_and_gives_up(make_job, monkeypatch):
     monkeypatch.setattr(receiver_mod, "_receive_unit", counting)
     # not --once and the sender is done, but the relay is not empty: the receiver keeps
     # polling; after MAX_ATTEMPTS it stops touching the unit, so stop it from outside.
-    import threading
-    stop = threading.Event()
-    out = {}
-    t = threading.Thread(target=lambda: out.setdefault("r", receive(job, stop=stop, **FAST)))
-    t.start()
-    t.join(timeout=1)
-    stop.set()
-    t.join(timeout=30)
+    res = _run_until(lambda stop: receive(job, stop=stop, **FAST), lambda: calls["n"] >= 3,
+                     settle=0.3)  # a few more polls: the unit must not be touched again
     assert calls["n"] == 3
-    assert out["r"].failed == ["20200102"]
+    assert res.failed == ["20200102"]

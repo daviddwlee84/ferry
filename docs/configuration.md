@@ -108,7 +108,10 @@ containing unrelated files. Leave room beyond the staging cap for a whole unit.
 or `3900MiB`. Optional `part_size` controls splitting; defaults depend on the
 adapter. `min_free` is enforced only when the adapter can report free space.
 `max_inflight` limits outstanding payload bytes tracked for the job; allow at
-least the largest whole unit, or sending can wait indefinitely.
+least the largest whole unit, or sending can wait indefinitely. `stall_timeout`
+(for example `"20m"`, default off) kills a backend transfer that prints nothing
+for that long and retries the part, so a hung connection cannot block a job
+forever; ferry adds progress flags to rclone and rsync when it is set.
 
 | Adapter | Main `options` | Requirements and limits |
 | --- | --- | --- |

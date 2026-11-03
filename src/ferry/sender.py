@@ -17,6 +17,7 @@ from .core import adapter_for, instance_lock, ledger, logger, preflight, remove_
 from .fingerprint import fingerprint
 from .job import Job, Unit, enumerate_units
 from .pack import dir_bytes, pack_unit, staged
+from .proc import WindowClosed
 from .protocol import Manifest, ack_path, inventory_path, sender_done_path, unit_dir, utcnow
 from .windows import blocked_for
 
@@ -114,6 +115,10 @@ def send(job: Job, *, follow: bool = False, allow_proxy: bool = False, poll: flo
                     if not _push_unit(job, adapter, directory, led, log, stop, poll):
                         continue  # waited on backpressure
                     backoff = INITIAL_BACKOFF
+                except WindowClosed as e:
+                    # Not a failure: the next put() waits for the window to reopen.
+                    log.info("push %s paused: %s", directory.name, e)
+                    led.append("paused", directory.name, reason=str(e)[:200])
                 except Exception as e:  # noqa: BLE001 - keep relaying other units
                     log.error("push %s failed: %s (retry in %ds)", directory.name, e, backoff)
                     led.append("failed", directory.name, stage="push", error=str(e)[:500])

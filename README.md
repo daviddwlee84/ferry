@@ -120,6 +120,7 @@ prefix = "/ferry/daily-archive"
 part_size = "3900MiB"                         # default per adapter
 min_free = "200GB"
 max_inflight = "1.5TB"
+# stall_timeout = "20m"                       # kill a backend transfer silent this long, retry the part
 egress = "direct"                             # direct | any
 # trusted_interfaces = ["Meta"]               # TUN you verified routes this backend DIRECT
 options = { download_threads = 4 }
@@ -293,6 +294,13 @@ default, in `[remote]` or `host.toml`); set it to `false` to let the part finish
 instead. Interrupted backend uploads restart that part from zero, so keep `part_size`
 small (e.g. `256MiB`) on jobs with tight windows.
 This is separate from `sender.read_blocked`, which only pauses packing (source reads).
+
+A backend that hangs on a dead connection would otherwise block a job forever (the
+process stays alive, so a supervisor does not restart it). `stall_timeout = "20m"` in
+`[remote]` kills a transfer that prints nothing for that long and retries the part with
+the usual backoff. It relies on the tool printing progress: BaiduPCS-Go always does,
+and ferry adds `--stats` to rclone and `--info=progress2` to rsync when the timeout is
+set. The default is off.
 
 ## Egress
 

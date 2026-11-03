@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .core import adapter_for, instance_lock, ledger, logger, preflight, require
 from .job import Job, dest_dir
+from .proc import WindowClosed
 from .protocol import Manifest, ack_path, is_safe_key, sender_done_path, unit_dir, utcnow
 
 READ_BUF = 8 << 20
@@ -86,6 +87,9 @@ def receive(job: Job, *, once: bool = False, follow: bool = False, allow_proxy: 
                     progressed = True
                     attempts.pop(key, None)
                     retry_at.pop(key, None)
+                except WindowClosed as e:
+                    log.info("receive %s paused: %s", key, e)
+                    led.append("paused", key, reason=str(e)[:200])
                 except Exception as e:  # noqa: BLE001 - keep receiving other units
                     attempts[key] = attempts.get(key, 0) + 1
                     delay = min(RETRY_BASE * 2 ** (attempts[key] - 1), RETRY_MAX)

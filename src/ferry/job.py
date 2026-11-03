@@ -87,6 +87,9 @@ class RemoteSpec:
     download_schedule: Schedule = field(default_factory=Schedule)
     #: Stop a running transfer when its window closes (False: let the part finish).
     stop_at_window_end: bool = True
+    #: Kill a backend transfer that prints nothing for this long (hung network); the part
+    #: is retried. None (default): wait forever.
+    stall_timeout: float | None = None
 
     def for_side(self, side: str) -> tuple[str, dict]:
         override = self.sides.get(side, {})
@@ -181,7 +184,11 @@ def job_from_dict(data: dict, path: Path | None = None) -> Job:
                             download_rate=parse_size(r.get("download_rate")),
                             upload_schedule=parse_schedule(r, "upload"),
                             download_schedule=parse_schedule(r, "download"),
-                            stop_at_window_end=bool(r.get("stop_at_window_end", True)))
+                            stop_at_window_end=bool(r.get("stop_at_window_end", True)),
+                            stall_timeout=(_duration(r["stall_timeout"])
+                                           if r.get("stall_timeout") is not None else None))
+        if remote.stall_timeout is not None and remote.stall_timeout <= 0:
+            raise JobError("remote.stall_timeout must be positive")
         if set(remote.sides) - {"sender", "receiver"}:
             raise JobError("remote.sides keys must be 'sender' or 'receiver'")
         if remote.egress not in EGRESS_POLICIES:

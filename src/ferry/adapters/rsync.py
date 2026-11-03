@@ -79,18 +79,21 @@ class RsyncAdapter(Adapter):
             found.append(f"ssh ProxyJump {cfg['proxyjump']} (traffic relayed by the jump host)")
         return found
 
+    def _progress(self) -> list[str]:
+        return ["--info=progress2"] if self.stall_timeout else []
+
     def put(self, local: Path, remote: str) -> None:
         path = self._abs(remote)
         self._sh(f"mkdir -p {shlex.quote(posixpath.dirname(path))}")
         ssh = ["-e", shlex.join(self.ssh)] if self.host else []
-        run_transfer([self.rsync, *self.flags, *_bwlimit(self.upload_rate), *ssh, str(local),
-                      self._target(path)], log=self.log)
+        run_transfer([self.rsync, *self.flags, *_bwlimit(self.upload_rate), *self._progress(),
+                      *ssh, str(local), self._target(path)], log=self.log)
 
     def get(self, remote: str, local: Path) -> None:
         local.parent.mkdir(parents=True, exist_ok=True)
         ssh = ["-e", shlex.join(self.ssh)] if self.host else []
-        run_transfer([self.rsync, *self.flags, *_bwlimit(self.download_rate), *ssh,
-                      self._target(self._abs(remote)), str(local)], log=self.log)
+        run_transfer([self.rsync, *self.flags, *_bwlimit(self.download_rate), *self._progress(),
+                      *ssh, self._target(self._abs(remote)), str(local)], log=self.log)
 
     def stat(self, remote: str) -> int | None:
         path = shlex.quote(self._abs(remote))

@@ -21,10 +21,16 @@ _PROGRESS = re.compile(r"[↑↓]|\d+(\.\d+)?%|Transferred:|ETA ")
 
 #: Monotonic time at which a running transfer must be stopped (transfer window closes).
 _deadline: contextvars.ContextVar[float | None] = contextvars.ContextVar("deadline", default=None)
+#: Seconds without any output after which a running transfer is killed (hung backend).
+_stall: contextvars.ContextVar[float | None] = contextvars.ContextVar("stall", default=None)
 
 
 class WindowClosed(RuntimeError):
     """A transfer was stopped because its transfer window closed; retry in the next one."""
+
+
+class Stalled(RuntimeError):
+    """A transfer printed nothing for too long and was killed; treated as a failure."""
 
 
 @contextmanager
@@ -35,6 +41,21 @@ def transfer_deadline(seconds: float | None):
         yield
     finally:
         _deadline.reset(token)
+
+
+@contextmanager
+def transfer_stall(seconds: float | None):
+    """Kill any run_transfer inside this block once it is silent for `seconds`.
+
+    Only meaningful for tools that print progress while transferring (BaiduPCS-Go does;
+    rclone needs ``--stats``, rsync ``--info=progress2``; adapters add those flags when a
+    stall timeout is set).
+    """
+    token = _stall.set(seconds)
+    try:
+        yield
+    finally:
+        _stall.reset(token)
 
 
 class CommandError(RuntimeError):
@@ -60,26 +81,32 @@ def run_transfer(argv: list[str], *, log: Path | None = None) -> str:
     """Run a long transfer, streaming output; progress lines are not kept in the log."""
     kept: list[str] = []
     last_progress = ""
-    deadline = _deadline.get()
-    stopped = threading.Event()
+    deadline, stall = _deadline.get(), _stall.get()
+    stopped, stalled = threading.Event(), threading.Event()
+    last_output = [time.monotonic()]
     with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                           env=clean_env(), stdin=subprocess.DEVNULL) as proc:
-        if deadline is not None:
+        if deadline is not None or stall is not None:
             def watchdog() -> None:
                 while proc.poll() is None:
-                    if time.monotonic() >= deadline:
+                    now = time.monotonic()
+                    if deadline is not None and now >= deadline:
                         stopped.set()
+                    elif stall is not None and now - last_output[0] >= stall:
+                        stalled.set()
+                    if stopped.is_set() or stalled.is_set():
                         proc.terminate()
                         try:
                             proc.wait(timeout=15)
                         except subprocess.TimeoutExpired:
                             proc.kill()
                         return
-                    time.sleep(min(1.0, max(0.05, deadline - time.monotonic())))
-            threading.Thread(target=watchdog, name="ferry-deadline", daemon=True).start()
+                    time.sleep(0.25)
+            threading.Thread(target=watchdog, name="ferry-watchdog", daemon=True).start()
         buf = b""
         assert proc.stdout is not None
         while chunk := proc.stdout.read1(65536):
+            last_output[0] = time.monotonic()
             buf += chunk
             *lines, buf = re.split(rb"[\r\n]", buf)
             for raw in lines:
@@ -98,9 +125,11 @@ def run_transfer(argv: list[str], *, log: Path | None = None) -> str:
     output = "\n".join(kept)
     if log is not None:
         _append(log, argv, output)
+    head = f"{argv[0]} {argv[1] if len(argv) > 1 else ''}"
     if stopped.is_set():
-        raise WindowClosed(f"{argv[0]} {argv[1] if len(argv) > 1 else ''} stopped: "
-                           "transfer window closed")
+        raise WindowClosed(f"{head} stopped: transfer window closed")
+    if stalled.is_set():
+        raise Stalled(f"{head} killed: no output for {stall:.0f}s (stall_timeout)")
     if code != 0:
         raise CommandError(argv, code, output)
     return output

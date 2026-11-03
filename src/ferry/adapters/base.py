@@ -25,6 +25,9 @@ class Adapter(ABC):
     #: Whether this backend can enforce the caps; preflight fails when a cap is set but
     #: cannot be honoured, rather than silently transferring at full speed.
     supports_rate_limit: bool = False
+    #: Kill a transfer silent for this many seconds ([remote] stall_timeout); None = never.
+    #: Adapters whose tool is quiet by default add progress flags when this is set.
+    stall_timeout: float | None = None
 
     def __init__(self, options: dict, log: Path | None = None):
         self.options = options

@@ -67,14 +67,21 @@ class RcloneAdapter(Adapter):
         fmt = lambda n: f"{n}B" if n else "off"  # noqa: E731
         return ["--bwlimit", f"{fmt(self.upload_rate)}:{fmt(self.download_rate)}"]
 
+    def _progress(self) -> list[str]:
+        """Periodic stats lines so the stall watchdog sees a live transfer."""
+        if not self.stall_timeout:
+            return []
+        every = max(10, min(60, int(self.stall_timeout // 4)))
+        return ["--stats", f"{every}s", "--stats-log-level", "NOTICE", "--stats-one-line"]
+
     def put(self, local: Path, remote: str) -> None:
-        run_transfer([self.bin, "copyto", *self.flags, *self._bwlimit(), str(local),
-                      self._full(remote)], log=self.log)
+        run_transfer([self.bin, "copyto", *self.flags, *self._bwlimit(), *self._progress(),
+                      str(local), self._full(remote)], log=self.log)
 
     def get(self, remote: str, local: Path) -> None:
         local.parent.mkdir(parents=True, exist_ok=True)
-        run_transfer([self.bin, "copyto", *self.flags, *self._bwlimit(), self._full(remote),
-                      str(local)], log=self.log)
+        run_transfer([self.bin, "copyto", *self.flags, *self._bwlimit(), *self._progress(),
+                      self._full(remote), str(local)], log=self.log)
 
     def _lsjson(self, remote: str, *flags: str) -> list[dict] | dict | None:
         try:

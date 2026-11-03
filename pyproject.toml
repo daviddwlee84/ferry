@@ -1,6 +1,6 @@
 [project]
 name = "ferry"
-version = "0.1.0"
+dynamic = ["version"]  # single source: src/ferry/__init__.py
 description = "Resumable bulk transfer between hosts that cannot reach each other, relayed through cloud storage"
 readme = "README.md"
 license = "MIT"
@@ -13,6 +13,9 @@ ferry = "ferry.cli:main"
 [build-system]
 requires = ["hatchling>=1.25,<2"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/ferry/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ferry"]

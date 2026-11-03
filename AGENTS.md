@@ -13,6 +13,12 @@ often old (CentOS 7 via uv-managed Python), without root, with restricted egress
 - Ledger formats (`sender.jsonl`, `receiver.jsonl`) and the manifest are compatibility
   surfaces: bump `MANIFEST_VERSION` and handle old records when changing them.
 - Record backend traps in `pitfalls/` (titled by symptom); future work in `TODO.md`.
+- Versioning: semantic, tagged `vX.Y.Z`. The version lives only in
+  `src/ferry/__init__.py` (`pyproject.toml` reads it). Every user-visible change gets a
+  line under `## Unreleased` in `CHANGELOG.md`; a release moves that section under a
+  dated heading, bumps `__version__`, updates the `@vX.Y.Z` line in `README.md` and
+  tags the commit. Bump MINOR for new config keys, ledger events or manifest changes,
+  PATCH for fixes only; MAJOR once the formats are frozen at 1.0.
 - Do not commit or push without an explicit request.
 - Documentation uses an English Zensical pilot: `just docs-setup`, `just docs-build`,
   `just docs-serve`. Keep Zensical in the `docs` dependency group, never runtime deps.

@@ -56,8 +56,12 @@ Documentation tooling is not part of ferry's runtime dependencies.
 
 ```bash
 uv tool install git+https://github.com/daviddwlee84/ferry   # CLI on PATH
-# or as a dependency:  ferry @ git+https://github.com/daviddwlee84/ferry@v0.1.0
+# or as a dependency:  ferry @ git+https://github.com/daviddwlee84/ferry@v0.2.0
 ```
+
+Releases are tagged `vX.Y.Z` (semantic versioning, 0.x while the config and ledger
+formats may still change); see [CHANGELOG.md](CHANGELOG.md). `ferry --version` prints
+the installed version.
 
 Python ≥ 3.11, no runtime dependencies. Backend CLIs are used as installed:
 [BaiduPCS-Go](https://github.com/qjfoidnh/BaiduPCS-Go), `rclone`, `gh`.

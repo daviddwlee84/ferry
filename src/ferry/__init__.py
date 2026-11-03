@@ -1,7 +1,7 @@
 """Resumable bulk transfer between hosts that cannot reach each other, via cloud storage."""
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .core import Preflight, adapter_for, preflight
 from .job import Job, enumerate_units, load_job

@@ -113,31 +113,56 @@ def inventory_path(prefix: str) -> str:
 
 
 class Ledger:
-    """Append-only JSONL event log; the replayed state decides what is left to do."""
+    """Append-only JSONL event log; the replayed state decides what is left to do.
+
+    The file is parsed once; later reads come from memory and ``append`` updates both,
+    so a job with tens of thousands of units does not re-parse the whole log on every
+    poll. One process writes a ledger at a time (``core.instance_lock``).
+    """
 
     def __init__(self, path: Path):
         self.path = path
         self._lock = threading.Lock()
+        self._records: list[dict] | None = None
+        self._latest: dict[str, dict[str, dict]] = {}  # event -> key -> record
         path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _load(self) -> list[dict]:
+        if self._records is None:
+            out: list[dict] = []
+            if self.path.exists():
+                for line in self.path.read_text().splitlines():
+                    if line.strip():
+                        try:
+                            out.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            continue  # torn final line after a crash
+            self._records = out
+            self._latest = {}
+            for r in out:
+                self._index(r)
+        return self._records
+
+    def _index(self, record: dict) -> None:
+        if record.get("key"):
+            self._latest.setdefault(record["event"], {})[record["key"]] = record
 
     def append(self, event: str, key: str | None = None, **fields) -> None:
         record = {"ts": utcnow(), "event": event, "key": key, **fields}
-        with self._lock, self.path.open("a") as f:
-            f.write(json.dumps(record, sort_keys=True) + "\n")
-            f.flush()
+        with self._lock:
+            records = self._load()  # before writing, or the new line is read twice
+            with self.path.open("a") as f:
+                f.write(json.dumps(record, sort_keys=True) + "\n")
+                f.flush()
+            records.append(record)
+            self._index(record)
 
     def records(self) -> list[dict]:
-        if not self.path.exists():
-            return []
-        out = []
-        for line in self.path.read_text().splitlines():
-            if line.strip():
-                try:
-                    out.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue  # torn final line after a crash
-        return out
+        with self._lock:
+            return list(self._load())
 
     def keys(self, event: str) -> dict[str, dict]:
         """Latest record of ``event`` per key."""
-        return {r["key"]: r for r in self.records() if r["event"] == event and r.get("key")}
+        with self._lock:
+            self._load()
+            return dict(self._latest.get(event, {}))

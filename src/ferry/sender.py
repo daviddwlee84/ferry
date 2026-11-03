@@ -13,7 +13,16 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .core import adapter_for, instance_lock, ledger, logger, preflight, remove_inside, require
+from .core import (
+    PreflightError,
+    adapter_for,
+    instance_lock,
+    ledger,
+    logger,
+    preflight,
+    remove_inside,
+    require,
+)
 from .fingerprint import fingerprint
 from .job import Job, Unit, enumerate_units
 from .pack import dir_bytes, pack_unit, staged
@@ -256,9 +265,16 @@ def _push_unit(job: Job, adapter, directory: Path, led, log, stop, poll) -> bool
 
 
 def _delete_source(key: str, info: dict, led, log) -> None:
+    """Remove the unit's members; a refusal is recorded, not raised, so the push loop
+    does not re-push the (already relayed) unit forever."""
     root = Path(info["root"])
-    for member in info["members"]:
-        remove_inside(root, member)
+    try:
+        for member in info["members"]:
+            remove_inside(root, member)
+    except (PreflightError, OSError) as e:
+        log.error("source of %s not deleted: %s", key, e)
+        led.append("failed", key, stage="delete_source", error=str(e)[:500])
+        return
     led.append("source_deleted", key)
     log.info("deleted source of %s", key)
 

@@ -113,3 +113,36 @@ def test_failed_unit_backs_off_and_gives_up(make_job, monkeypatch):
                      settle=0.3)  # a few more polls: the unit must not be touched again
     assert calls["n"] == 3
     assert res.failed == ["20200102"]
+
+
+def test_ledger_index_matches_file_replay(tmp_path):
+    from ferry.protocol import Ledger
+    led = Ledger(tmp_path / "l.jsonl")
+    led.append("start")
+    led.append("pushed", "a", size=1)
+    led.append("pushed", "b", size=2)
+    led.append("pushed", "a", size=3)  # latest wins
+    (tmp_path / "l.jsonl").open("a").write('{"torn')
+    fresh = Ledger(tmp_path / "l.jsonl")
+    assert led.keys("pushed") == fresh.keys("pushed")
+    assert [r["size"] for r in led.keys("pushed").values()] == [3, 2]
+    assert len(led.records()) == len(fresh.records()) == 4
+    assert led.keys("nothing") == {}
+
+
+def test_refused_source_delete_is_recorded_once(make_job, tmp_path):
+    import os
+    job, src, base = make_job(days=("20200102",), delete_source="after_remote_size")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    # a member that is a symlink out of the source root: remove_inside refuses it
+    target = src / "snapshot" / "ours"
+    target.mkdir(parents=True)
+    os.symlink(outside, target / "20200102")
+    res = send(job, **FAST)
+    assert res.pushed == 1 and res.source_deleted == 0
+    from ferry.protocol import Ledger
+    records = Ledger(job.state_dir / "sender.jsonl").records()
+    assert sum(1 for r in records if r["event"] == "pushed") == 1
+    assert [r["stage"] for r in records if r["event"] == "failed"] == ["delete_source"]
+    assert outside.exists() and (src / "_manifests" / "20200102.json").exists()

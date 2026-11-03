@@ -13,12 +13,12 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .protocol import KEY_RE as _KEY
 from .sizes import parse_size
 from .windows import Schedule, Window
 
 DELETE_POLICIES = ("never", "after_remote_size", "after_receiver_ack")
 EGRESS_POLICIES = ("direct", "any")
-_KEY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 
 
 class JobError(ValueError):

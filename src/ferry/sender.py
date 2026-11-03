@@ -263,13 +263,29 @@ def _awaiting_acks(led) -> bool:
 
 
 def _consume_acks(job: Job, adapter, led, log) -> None:
+    """Delete the source of every unit whose ack names the sha256 we pushed.
+
+    An ack for another content (stale relay, reused prefix) is left in place and logged;
+    deleting a source on its strength would lose data the receiver never verified.
+    """
     pushed, deleted = led.keys("pushed"), led.keys("source_deleted")
     for entry in adapter.list(f"{job.remote.prefix}/_acks"):
         key = entry.removesuffix(".json")
-        if key in pushed and key not in deleted:
+        if key not in pushed:
+            continue
+        path = ack_path(job.remote.prefix, key)
+        text = adapter.get_text(path, job.state_dir / "scratch") or ""
+        try:
+            acked = json.loads(text).get("sha256")
+        except (json.JSONDecodeError, AttributeError):
+            acked = None
+        if acked != pushed[key]["sha256"]:
+            log.warning("ack for %s names sha256 %s, pushed %s; ignoring it", key,
+                        acked, pushed[key]["sha256"])
+            continue
+        if key not in deleted:
             _delete_source(key, pushed[key], led, log)
-        if key in pushed:
-            adapter.delete(ack_path(job.remote.prefix, key))
+        adapter.delete(path)
 
 
 __all__ = ["SendResult", "Unit", "send"]

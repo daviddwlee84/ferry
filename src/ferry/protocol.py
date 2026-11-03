@@ -14,11 +14,26 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import posixpath
+import re
 import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 MANIFEST_VERSION = 1
+KEY_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+
+
+def is_safe_key(key: str) -> bool:
+    """Unit keys: one path component, never starting with the reserved ``_``/``.``."""
+    return bool(KEY_RE.fullmatch(key))
+
+
+def is_safe_relative(path: str) -> bool:
+    """A relative POSIX path that stays inside its root (no ``..``, no absolute, no NUL)."""
+    if not path or "\0" in path or posixpath.isabs(path):
+        return False
+    return ".." not in path.split("/") and path.strip() == path
 
 
 def utcnow() -> str:
@@ -60,7 +75,24 @@ class Manifest:
             raise ValueError(f"unsupported manifest version {data.get('version')}")
         data["parts"] = tuple(Part(**p) for p in data["parts"])
         data["paths"] = tuple(data.get("paths", ()))
-        return cls(**data)
+        manifest = cls(**data)
+        manifest.validate()
+        return manifest
+
+    def validate(self) -> None:
+        """Reject names that would escape the destination; the relay is not trusted."""
+        if not is_safe_key(self.key):
+            raise ValueError(f"unsafe unit key {self.key!r}")
+        if not is_safe_relative(self.filename) or "/" in self.filename:
+            raise ValueError(f"{self.key}: unsafe filename {self.filename!r}")
+        for rel in self.paths:
+            if not is_safe_relative(rel):
+                raise ValueError(f"{self.key}: unsafe member path {rel!r}")
+        if not self.parts:
+            raise ValueError(f"{self.key}: manifest lists no parts")
+        for part in self.parts:
+            if not is_safe_relative(part.name) or "/" in part.name or part.size <= 0:
+                raise ValueError(f"{self.key}: unsafe part {part.name!r}")
 
 
 def unit_dir(prefix: str, key: str) -> str:

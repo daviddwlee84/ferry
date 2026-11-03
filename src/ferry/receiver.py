@@ -19,9 +19,15 @@ from pathlib import Path
 
 from .core import adapter_for, instance_lock, ledger, logger, preflight, require
 from .job import Job, dest_dir
-from .protocol import Manifest, ack_path, sender_done_path, unit_dir, utcnow
+from .protocol import Manifest, ack_path, is_safe_key, sender_done_path, unit_dir, utcnow
 
 READ_BUF = 8 << 20
+#: A unit that keeps failing is retried with growing delays and then left alone (it is
+#: still listed in the result and ledger); without this a broken unit would be re-hashed
+#: and re-scanned on every poll forever.
+RETRY_BASE = 60
+RETRY_MAX = 3600
+MAX_ATTEMPTS = 8
 
 
 @dataclass
@@ -49,6 +55,7 @@ def receive(job: Job, *, once: bool = False, follow: bool = False, allow_proxy: 
         led = ledger(job, "receiver")
         led.append("start", once=once, follow=follow, allow_proxy=allow_proxy)
         attempts: dict[str, int] = {}
+        retry_at: dict[str, float] = {}
         while not stop.is_set():
             entries = adapter.list(job.remote.prefix)
             keys = sorted(e.rstrip("/") for e in entries
@@ -58,6 +65,11 @@ def receive(job: Job, *, once: bool = False, follow: bool = False, allow_proxy: 
             for key in keys:
                 if stop.is_set():
                     break
+                if not is_safe_key(key):
+                    log.warning("ignoring relay entry with unsafe name %r", key)
+                    continue
+                if attempts.get(key, 0) >= MAX_ATTEMPTS or time.monotonic() < retry_at.get(key, 0):
+                    continue
                 text = adapter.get_text(f"{unit_dir(job.remote.prefix, key)}/manifest.json",
                                         scratch)
                 if text is None:
@@ -72,9 +84,15 @@ def receive(job: Job, *, once: bool = False, follow: bool = False, allow_proxy: 
                         break
                     _receive_unit(job, adapter, manifest, led, log)
                     progressed = True
+                    attempts.pop(key, None)
+                    retry_at.pop(key, None)
                 except Exception as e:  # noqa: BLE001 - keep receiving other units
                     attempts[key] = attempts.get(key, 0) + 1
-                    log.error("receive %s failed (attempt %d): %s", key, attempts[key], e)
+                    delay = min(RETRY_BASE * 2 ** (attempts[key] - 1), RETRY_MAX)
+                    retry_at[key] = time.monotonic() + delay
+                    given_up = attempts[key] >= MAX_ATTEMPTS
+                    log.error("receive %s failed (attempt %d): %s; %s", key, attempts[key], e,
+                              "giving up until restart" if given_up else f"retry in {delay:.0f}s")
                     led.append("failed", key, error=str(e)[:500], attempt=attempts[key])
                     if key not in failed:
                         failed.append(key)
